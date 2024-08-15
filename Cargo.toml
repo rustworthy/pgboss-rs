@@ -1,0 +1,19 @@
+[package]
+name = "pgboss"
+version = "0.1.0"
+edition = "2021"
+authors = ["Pavel Mikhalkevich <paul.michelle.prod@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Rust implementation of PgBoss job queueing service"
+repository = "https://github.com/rustworthy/pgboss-rs.git"
+keywords = ["pgboss", "postgres", "queue", "worker", "job"]
+categories = ["asynchronous"]
+
+exclude = [".github", "docker", ".gitignore", "Makefile"]
+
+
+[dependencies]
+sqlx = { version = "0.8.0", features = ["runtime-tokio", "postgres"] }
+
+[dev-dependencies]
+tokio = { version = "1.39.2", features = ["macros"] }
