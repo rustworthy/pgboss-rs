@@ -37,6 +37,10 @@ postgres:
 postgres/start:
 	docker start ${POSTGRES_CONTAINER_NAME}
 
+.PHONY: postgres/psql
+postgres/psql:
+	docker exec -it pgboss sh -c "psql -U pgboss_user pgboss"
+
 .PHONY: postgres/kill
 postgres/kill:
 	docker stop ${POSTGRES_CONTAINER_NAME} && docker rm ${POSTGRES_CONTAINER_NAME}
@@ -48,5 +52,7 @@ test/doc:
 .PHONY: test/e2e
 test/e2e:
 	POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE} \
-	cargo test --locked --all-features --all-targets --test e2e
+	cargo test --locked --all-features --all-targets --test e2e -- --nocapture
 
+.PHONY: test
+test: test/e2e

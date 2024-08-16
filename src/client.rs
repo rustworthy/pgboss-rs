@@ -1,5 +1,6 @@
-use super::Client;
 use sqlx::postgres::{PgPool, PgPoolOptions};
+
+use crate::stmt;
 
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
@@ -26,7 +27,7 @@ impl ClientBuilder {
             pool,
             schema: self.schema,
         };
-        client.ensure_data_definition().await.map(|_| client)
+        client.migrate().await.map(|_| client)
     }
 
     /// Connect to the PostgreSQL server.
@@ -50,5 +51,25 @@ impl ClientBuilder {
             }
         };
         self.connect_with(pool).await
+    }
+}
+
+#[derive(Debug)]
+pub struct Client {
+    pool: PgPool,
+    schema: String,
+}
+
+impl Client {
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::default()
+    }
+
+    async fn migrate(&mut self) -> Result<(), sqlx::Error> {
+        let ddl = stmt::compile_all(&self.schema);
+        println!("{}", ddl);
+        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
+
+        Ok(())
     }
 }
