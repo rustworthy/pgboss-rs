@@ -1,6 +1,6 @@
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
-use crate::stmt;
+use crate::{app::App, stmt};
 
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
@@ -30,6 +30,16 @@ impl ClientBuilder {
             pool,
             schema: self.schema,
         };
+        if let Some(app) = client.existing_app().await? {
+            println!(
+                "App already exists: version={}, maintained_on={}, cron_on={}",
+                app.version, app.maintained_on, app.cron_on
+            );
+            if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_DDL_REVISION {
+                panic!("Cannot migrate from the currently installed PgBoss application.")
+            }
+            return Ok(client);
+        }
         client.migrate().await.map(|_| client)
     }
 
@@ -69,8 +79,19 @@ impl Client {
     }
 
     async fn migrate(&mut self) -> Result<(), sqlx::Error> {
-        let ddl = stmt::compile_all(&self.schema);
+        let ddl = stmt::compile_ddl(&self.schema);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
+    }
+
+    async fn existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {
+        let stmt = stmt::check_if_app_installed(&self.schema);
+        let installed: bool = sqlx::query_scalar(&stmt).fetch_one(&self.pool).await?;
+        if !installed {
+            return Ok(None);
+        }
+        let stmt = stmt::get_app(&self.schema);
+        let app: App = sqlx::query_as(&stmt).fetch_one(&self.pool).await?;
+        Ok(Some(app))
     }
 }

@@ -49,6 +49,14 @@ fn create_queue_table(schema: &str) -> String {
     )
 }
 
+pub(crate) fn check_if_app_installed(schema: &str) -> String {
+    format!("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = 'version');")
+}
+
+pub(crate) fn get_app(schema: &str) -> String {
+    format!("SELECT * FROM {schema}.version;")
+}
+
 fn locked<I>(schema: &str, stmts: I) -> String
 where
     I: IntoIterator<Item = String>,
@@ -64,7 +72,7 @@ where
     )
 }
 
-pub(crate) fn compile_all(schema: &str) -> String {
+pub(crate) fn compile_ddl(schema: &str) -> String {
     locked(
         schema,
         [

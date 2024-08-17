@@ -10,14 +10,19 @@ lazy_static::lazy_static! {
     };
 }
 
-pub(crate) async fn ad_hoc_sql(stmt: &str) -> Result<(), sqlx::Error> {
+pub(crate) async fn ad_hoc_sql<I>(stmt: I) -> Result<(), sqlx::Error>
+where
+    I: IntoIterator<Item = String>,
+{
     let mut conn = sqlx::PgConnection::connect(&*POSRGRES_URL).await?;
-    let r = sqlx::raw_sql(&stmt).execute(&mut conn).await;
+    let r = sqlx::raw_sql(&stmt.into_iter().collect::<Vec<_>>().join("\n"))
+        .execute(&mut conn)
+        .await;
     conn.close().await?;
     Ok(r.map(|_| ())?)
 }
 
 pub(crate) async fn drop_schema(schema: &str) -> Result<(), sqlx::Error> {
     let stmt = format!("DROP SCHEMA {} CASCADE", schema);
-    ad_hoc_sql(&stmt).await
+    ad_hoc_sql([stmt]).await
 }
