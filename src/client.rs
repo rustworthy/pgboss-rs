@@ -70,7 +70,6 @@ impl Client {
 
     async fn migrate(&mut self) -> Result<(), sqlx::Error> {
         let ddl = stmt::compile_all(&self.schema);
-        println!("{}", ddl);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
     }

@@ -23,11 +23,29 @@ fn create_job_state_enum(schema: &str) -> String {
 
 fn create_version_table(schema: &str) -> String {
     format!(
-        "CREATE TABLE IF NOT EXISTS {}.version (
+        "CREATE TABLE IF NOT EXISTS {schema}.version (
         version int primary key,
         maintained_on timestamp with time zone,
-        cron_on timestamp with time zone);",
-        schema
+        cron_on timestamp with time zone);"
+    )
+}
+
+fn create_queue_table(schema: &str) -> String {
+    format!(
+        "CREATE TABLE IF NOT EXISTS {schema}.queue (
+        name text,
+        policy text,
+        retry_limit int,
+        retry_delay int,
+        retry_backoff bool,
+        expire_seconds int,
+        retention_minutes int,
+        dead_letter text REFERENCES {schema}.queue (name),
+        partition_name text,
+        created_on timestamp with time zone not null default now(),
+        updated_on timestamp with time zone not null default now(),
+        PRIMARY KEY (name) 
+    )"
     )
 }
 
@@ -53,6 +71,7 @@ pub(crate) fn compile_all(schema: &str) -> String {
             create_schema(schema),
             create_job_state_enum(schema),
             create_version_table(schema),
+            create_queue_table(schema),
         ],
     )
 }
