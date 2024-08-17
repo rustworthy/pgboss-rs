@@ -16,8 +16,11 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
-    pub fn schema(mut self, schema: String) -> Self {
-        self.schema = schema;
+    pub fn schema<S>(mut self, schema: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.schema = schema.into();
         self
     }
 
@@ -69,7 +72,6 @@ impl Client {
         let ddl = stmt::compile_all(&self.schema);
         println!("{}", ddl);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
-
         Ok(())
     }
 }
