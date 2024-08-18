@@ -3,6 +3,14 @@ use chrono::Utc;
 use pgboss::Client;
 
 #[tokio::test]
+async fn simple_connect() {
+    // This will crate `pgboss` schema, which is does not
+    // allow us to isolate tests properly, so we only use it
+    // once in this test - sanity check.
+    let _c = Client::connect(None).await.unwrap();
+}
+
+#[tokio::test]
 async fn instantiated_idempotently() {
     let local = "instantiated_idempotently";
 
@@ -23,8 +31,8 @@ async fn instantiated_idempotently() {
 }
 
 #[tokio::test]
-async fn app_already_exists() {
-    let local = "app_already_exists";
+async fn v21_app_already_exists() {
+    let local = "v21_app_already_exists";
 
     let create_schema_stmt = format!("CREATE SCHEMA {local};");
     let create_version_table_stmt = format!(
@@ -35,7 +43,7 @@ async fn app_already_exists() {
     );
     let insert_app_stmt = format!(
         "INSERT INTO {local}.version VALUES ('{}', '{}','{}')",
-        20,
+        21,
         Utc::now(),
         Utc::now()
     );

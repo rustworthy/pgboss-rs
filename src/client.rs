@@ -1,6 +1,20 @@
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::PgPool;
 
+use crate::utils;
 use crate::{app::App, stmt};
+
+#[derive(Debug, Clone)]
+struct ClientOptions {
+    schema: String,
+}
+
+impl Default for ClientOptions {
+    fn default() -> Self {
+        ClientOptions {
+            schema: "pgboss".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
@@ -26,51 +40,23 @@ impl ClientBuilder {
 
     /// Bring your own pool.
     pub async fn connect_with(self, pool: PgPool) -> Result<Client, sqlx::Error> {
-        let mut client = Client {
-            pool,
+        let opts = ClientOptions {
             schema: self.schema,
         };
-        if let Some(app) = client.existing_app().await? {
-            println!(
-                "App already exists: version={}, maintained_on={}, cron_on={}",
-                app.version, app.maintained_on, app.cron_on
-            );
-            if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_DDL_REVISION {
-                panic!("Cannot migrate from the currently installed PgBoss application.")
-            }
-            return Ok(client);
-        }
-        client.migrate().await.map(|_| client)
+        Client::new(pool, opts).await
     }
 
     /// Connect to the PostgreSQL server.
     pub async fn connect(self, url: Option<&str>) -> Result<Client, sqlx::Error> {
-        let pool = match url {
-            Some(url) => {
-                PgPoolOptions::new()
-                    .max_connections(10)
-                    .connect(url)
-                    .await?
-            }
-            None => {
-                let var_name = std::env::var("POSTGRES_PROVIDER")
-                    .unwrap_or_else(|_| "POSTGRES_URL".to_string());
-                let url = std::env::var(var_name)
-                    .unwrap_or_else(|_| "postgres://localhost:5432".to_string());
-                PgPoolOptions::new()
-                    .max_connections(10)
-                    .connect(&url)
-                    .await?
-            }
-        };
+        let pool = utils::create_pool(url).await?;
         self.connect_with(pool).await
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pool: PgPool,
-    schema: String,
+    opts: ClientOptions,
 }
 
 impl Client {
@@ -78,20 +64,53 @@ impl Client {
         ClientBuilder::default()
     }
 
-    async fn migrate(&mut self) -> Result<(), sqlx::Error> {
-        let ddl = stmt::compile_ddl(&self.schema);
+    /// Connect to the PostgreSQL server.
+    pub async fn connect(url: Option<&str>) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(url).await?;
+        Client::connect_with(pool).await
+    }
+
+    /// Bring your own pool.
+    pub async fn connect_with(pool: PgPool) -> Result<Self, sqlx::Error> {
+        let opts = ClientOptions::default();
+        Client::new(pool, opts).await
+    }
+
+    async fn new(pool: PgPool, opts: ClientOptions) -> Result<Self, sqlx::Error> {
+        let mut c = Client { pool, opts };
+        c.init().await?;
+        Ok(c)
+    }
+
+    async fn init(&mut self) -> Result<(), sqlx::Error> {
+        if let Some(app) = self.maybe_existing_app().await? {
+            println!(
+                "App already exists: version={}, maintained_on={}, cron_on={}",
+                app.version, app.maintained_on, app.cron_on
+            );
+            if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_DDL_REVISION {
+                panic!("Cannot migrate from the currently installed PgBoss application.")
+            }
+            return Ok(());
+        }
+        self.create_all().await?;
+        Ok(())
+    }
+
+    async fn create_all(&mut self) -> Result<(), sqlx::Error> {
+        let ddl = stmt::compile_ddl(&self.opts.schema);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
     }
 
-    async fn existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {
-        let stmt = stmt::check_if_app_installed(&self.schema);
+    async fn maybe_existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {
+        let stmt = stmt::check_if_app_installed(&self.opts.schema);
         let installed: bool = sqlx::query_scalar(&stmt).fetch_one(&self.pool).await?;
         if !installed {
             return Ok(None);
         }
-        let stmt = stmt::get_app(&self.schema);
-        let app: App = sqlx::query_as(&stmt).fetch_one(&self.pool).await?;
-        Ok(Some(app))
+        let stmt = stmt::get_app(&self.opts.schema);
+        let app: Option<App> = sqlx::query_as(&stmt).fetch_optional(&self.pool).await?;
+        Ok(app)
     }
 }

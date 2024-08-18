@@ -2,6 +2,7 @@ mod app;
 mod client;
 mod job;
 mod stmt;
+mod utils;
 
 pub use client::{Client, ClientBuilder};
 
