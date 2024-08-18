@@ -57,6 +57,20 @@ fn create_queue_table(schema: &str) -> String {
     )
 }
 
+fn create_subscription_table(schema: &str) -> String {
+    format!(
+        "
+        CREATE TABLE IF NOT EXISTS {schema}.subscription (
+            event text not null,
+            name text not null REFERENCES {schema}.queue ON DELETE CASCADE,
+            created_on timestamp with time zone not null default now(),
+            updated_on timestamp with time zone not null default now(),
+            PRIMARY KEY(event, name)
+        );
+        "
+    )
+}
+
 fn insert_version(schema: &str) -> String {
     format!(
         "INSERT INTO {schema}.version (version) VALUES ({}) ON CONFLICT DO NOTHING;",
@@ -103,6 +117,7 @@ pub(crate) fn compile_ddl(schema: &str) -> String {
             create_job_state_enum(schema),
             create_version_table(schema),
             create_queue_table(schema),
+            create_subscription_table(schema),
             // ...
             insert_version(schema),
         ],
