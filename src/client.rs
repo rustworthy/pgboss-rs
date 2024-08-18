@@ -47,8 +47,14 @@ impl ClientBuilder {
     }
 
     /// Connect to the PostgreSQL server.
-    pub async fn connect(self, url: Option<&str>) -> Result<Client, sqlx::Error> {
-        let pool = utils::create_pool(url).await?;
+    pub async fn connect_to(self, url: &str) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(Some(url)).await?;
+        self.connect_with(pool).await
+    }
+
+    /// Connect to the PostgreSQL server.
+    pub async fn connect(self) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(None).await?;
         self.connect_with(pool).await
     }
 }
@@ -65,8 +71,14 @@ impl Client {
     }
 
     /// Connect to the PostgreSQL server.
-    pub async fn connect(url: Option<&str>) -> Result<Client, sqlx::Error> {
-        let pool = utils::create_pool(url).await?;
+    pub async fn connect() -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(None).await?;
+        Client::connect_with(pool).await
+    }
+
+    /// Connect to the PostgreSQL server.
+    pub async fn connect_to(url: &str) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(Some(url)).await?;
         Client::connect_with(pool).await
     }
 
