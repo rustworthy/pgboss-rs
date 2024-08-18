@@ -28,9 +28,9 @@ fn create_version_table(schema: &str) -> String {
         "
         CREATE TABLE IF NOT EXISTS {schema}.version (
             version int primary key,
-            maintained_on timestamp with time zone,
-            cron_on timestamp with time zone,
-            monitored_on timestamp with time zone
+            maintained_on timestamptz,
+            cron_on timestamptz,
+            monitored_on timestamptz
         );
         "
     )
@@ -49,8 +49,8 @@ fn create_queue_table(schema: &str) -> String {
             retention_minutes int,
             dead_letter text REFERENCES {schema}.queue (name),
             partition_name text,
-            created_on timestamp with time zone not null default now(),
-            updated_on timestamp with time zone not null default now(),
+            created_on timestamptz not null default now(),
+            updated_on timestamptz not null default now(),
             PRIMARY KEY (name) 
         );
         "
@@ -63,9 +63,9 @@ fn create_subscription_table(schema: &str) -> String {
         CREATE TABLE IF NOT EXISTS {schema}.subscription (
             event text not null,
             name text not null REFERENCES {schema}.queue ON DELETE CASCADE,
-            created_on timestamp with time zone not null default now(),
-            updated_on timestamp with time zone not null default now(),
-            PRIMARY KEY(event, name)
+            created_on timestamptz not null default now(),
+            updated_on timestamptz not null default now(),
+            PRIMARY KEY (event, name)
         );
         "
     )
@@ -84,20 +84,33 @@ fn create_job_table(schema: &str) -> String {
             retry_count integer not null default(0),
             retry_delay integer not null default(0),
             retry_backoff boolean not null default false,
-            start_after timestamp with time zone not null default now(),
-            started_on timestamp with time zone,
+            start_after timestamptz not null default now(),
+            started_on timestamptz,
             singleton_key text,
             singleton_on timestamp without time zone,
             expire_in interval not null default interval '15 minutes',
-            created_on timestamp with time zone not null default now(),
-            completed_on timestamp with time zone,
-            keep_until timestamp with time zone NOT NULL default now() + interval '14 days',
+            created_on timestamptz not null default now(),
+            completed_on timestamptz,
+            keep_until timestamptz not null default now() + interval '14 days',
             output jsonb,
             dead_letter text,
             policy text      
         ) PARTITION BY LIST (name);
         ",
         JobState::Created
+    )
+}
+
+fn create_archive_table(schema: &str) -> String {
+    format!(
+        "
+        CREATE TABLE IF NOT EXISTS {schema}.archive (
+            LIKE {schema}.job,
+            archived_on timestamptz not null default now(),
+            PRIMARY KEY (name, id)
+        );
+        CREATE INDEX IF NOT EXISTS archive_i1 ON {schema}.archive (archived_on);
+        "
     )
 }
 
@@ -139,6 +152,20 @@ where
     )
 }
 
+///
+/// \d
+///```md
+/// List of relations
+/// Schema |     Name     |       Type        |    Owner    
+/// --------+--------------+-------------------+-------------
+/// pgboss | archive      | table             | pgboss_user
+/// pgboss | job          | partitioned table | pgboss_user
+/// pgboss | queue        | table             | pgboss_user
+/// pgboss | subscription | table             | pgboss_user
+/// pgboss | version      | table             | pgboss_user
+/// (5 rows)
+/// ```
+/// 
 pub(crate) fn compile_ddl(schema: &str) -> String {
     locked(
         schema,
@@ -149,6 +176,7 @@ pub(crate) fn compile_ddl(schema: &str) -> String {
             create_queue_table(schema),
             create_subscription_table(schema),
             create_job_table(schema),
+            create_archive_table(schema),
             // ...
             insert_version(schema),
         ],
