@@ -29,7 +29,8 @@ fn create_version_table(schema: &str) -> String {
         CREATE TABLE IF NOT EXISTS {schema}.version (
             version int primary key,
             maintained_on timestamp with time zone,
-            cron_on timestamp with time zone
+            cron_on timestamp with time zone,
+            monitored_on timestamp with time zone
         );
         "
     )
@@ -56,6 +57,13 @@ fn create_queue_table(schema: &str) -> String {
     )
 }
 
+fn insert_version(schema: &str) -> String {
+    format!(
+        "INSERT INTO {schema}.version (version) VALUES ({}) ON CONFLICT DO NOTHING;",
+        crate::CURRENT_PGBOSS_APP_VERSION
+    )
+}
+
 pub(crate) fn check_if_app_installed(schema: &str) -> String {
     format!(
         "
@@ -77,10 +85,10 @@ where
     format!(
         "
         BEGIN;
-            SET LOCAL lock_timeout = '30s';
-            SET LOCAL idle_in_transaction_session_timeout = '30s';
-            SELECT pg_advisory_xact_lock(('x' || encode(sha224((current_database() || '.pgboss.{schema}')::bytea), 'hex'))::bit(64)::bigint);
-            {};
+        SET LOCAL lock_timeout = '30s';
+        SET LOCAL idle_in_transaction_session_timeout = '30s';
+        SELECT pg_advisory_xact_lock(('x' || encode(sha224((current_database() || '.pgboss.{schema}')::bytea), 'hex'))::bit(64)::bigint);
+        {};
         COMMIT;
         ",
         stmts.into_iter().collect::<Vec<_>>().join("\n"),
@@ -95,6 +103,8 @@ pub(crate) fn compile_ddl(schema: &str) -> String {
             create_job_state_enum(schema),
             create_version_table(schema),
             create_queue_table(schema),
+            // ...
+            insert_version(schema),
         ],
     )
 }
