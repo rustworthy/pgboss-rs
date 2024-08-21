@@ -43,6 +43,7 @@ pub(crate) fn install_app(schema: &str) -> String {
             ddl::create_subscription_table(schema),
             ddl::create_job_table(schema),
             ddl::create_archive_table(schema),
+            ddl::create_create_queue_function(schema),
             // ...
             dml::insert_version(schema, crate::CURRENT_PGBOSS_APP_VERSION),
         ],
