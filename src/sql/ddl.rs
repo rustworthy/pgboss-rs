@@ -4,7 +4,7 @@ pub(crate) fn create_schema(schema: &str) -> String {
     format!("CREATE SCHEMA IF NOT EXISTS {};", schema)
 }
 
-fn create_job_state_enum(schema: &str) -> String {
+pub(super) fn create_job_state_enum(schema: &str) -> String {
     format!(
         "
         DO $$
@@ -23,7 +23,7 @@ fn create_job_state_enum(schema: &str) -> String {
     )
 }
 
-fn create_version_table(schema: &str) -> String {
+pub(super) fn create_version_table(schema: &str) -> String {
     format!(
         "
         CREATE TABLE IF NOT EXISTS {schema}.version (
@@ -36,7 +36,7 @@ fn create_version_table(schema: &str) -> String {
     )
 }
 
-fn create_queue_table(schema: &str) -> String {
+pub(super) fn create_queue_table(schema: &str) -> String {
     format!(
         "
         CREATE TABLE IF NOT EXISTS {schema}.queue (
@@ -57,7 +57,7 @@ fn create_queue_table(schema: &str) -> String {
     )
 }
 
-fn create_subscription_table(schema: &str) -> String {
+pub(super) fn create_subscription_table(schema: &str) -> String {
     format!(
         "
         CREATE TABLE IF NOT EXISTS {schema}.subscription (
@@ -71,7 +71,7 @@ fn create_subscription_table(schema: &str) -> String {
     )
 }
 
-fn create_job_table(schema: &str) -> String {
+pub(super) fn create_job_table(schema: &str) -> String {
     format!(
         "
         CREATE TABLE IF NOT EXISTS {schema}.job (
@@ -101,7 +101,7 @@ fn create_job_table(schema: &str) -> String {
     )
 }
 
-fn create_archive_table(schema: &str) -> String {
+pub(super) fn create_archive_table(schema: &str) -> String {
     format!(
         "
         CREATE TABLE IF NOT EXISTS {schema}.archive (
@@ -111,74 +111,5 @@ fn create_archive_table(schema: &str) -> String {
         );
         CREATE INDEX IF NOT EXISTS archive_i1 ON {schema}.archive (archived_on);
         "
-    )
-}
-
-fn insert_version(schema: &str) -> String {
-    format!(
-        "INSERT INTO {schema}.version (version) VALUES ({}) ON CONFLICT DO NOTHING;",
-        crate::CURRENT_PGBOSS_APP_VERSION
-    )
-}
-
-pub(crate) fn check_if_app_installed(schema: &str) -> String {
-    format!(
-        "
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.tables WHERE table_schema = '{schema}' AND table_name = 'version'
-        );
-        "
-    )
-}
-
-pub(crate) fn get_app(schema: &str) -> String {
-    format!("SELECT * FROM {schema}.version;")
-}
-
-fn locked<I>(schema: &str, stmts: I) -> String
-where
-    I: IntoIterator<Item = String>,
-{
-    format!(
-        "
-        BEGIN;
-        SET LOCAL lock_timeout = '30s';
-        SET LOCAL idle_in_transaction_session_timeout = '30s';
-        SELECT pg_advisory_xact_lock(('x' || encode(sha224((current_database() || '.pgboss.{schema}')::bytea), 'hex'))::bit(64)::bigint);
-        {};
-        COMMIT;
-        ",
-        stmts.into_iter().collect::<Vec<_>>().join("\n"),
-    )
-}
-
-///
-/// \d
-///```md
-/// List of relations
-/// Schema |     Name     |       Type        |    Owner    
-/// --------+--------------+-------------------+-------------
-/// pgboss | archive      | table             | pgboss_user
-/// pgboss | job          | partitioned table | pgboss_user
-/// pgboss | queue        | table             | pgboss_user
-/// pgboss | subscription | table             | pgboss_user
-/// pgboss | version      | table             | pgboss_user
-/// (5 rows)
-/// ```
-/// 
-pub(crate) fn compile_ddl(schema: &str) -> String {
-    locked(
-        schema,
-        [
-            create_schema(schema),
-            create_job_state_enum(schema),
-            create_version_table(schema),
-            create_queue_table(schema),
-            create_subscription_table(schema),
-            create_job_table(schema),
-            create_archive_table(schema),
-            // ...
-            insert_version(schema),
-        ],
     )
 }

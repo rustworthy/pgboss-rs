@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPool;
 
 use crate::utils;
-use crate::{app::App, stmt};
+use crate::{app::App, sql};
 
 #[derive(Debug, Clone)]
 struct ClientOptions {
@@ -105,23 +105,23 @@ impl Client {
             }
             return Ok(());
         }
-        self.create_all().await?;
+        self.install_app().await?;
         Ok(())
     }
 
-    async fn create_all(&mut self) -> Result<(), sqlx::Error> {
-        let ddl = stmt::compile_ddl(&self.opts.schema);
+    async fn install_app(&mut self) -> Result<(), sqlx::Error> {
+        let ddl = sql::install_app(&self.opts.schema);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
     }
 
     async fn maybe_existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {
-        let stmt = stmt::check_if_app_installed(&self.opts.schema);
+        let stmt = sql::dml::check_if_app_installed(&self.opts.schema);
         let installed: bool = sqlx::query_scalar(&stmt).fetch_one(&self.pool).await?;
         if !installed {
             return Ok(None);
         }
-        let stmt = stmt::get_app(&self.opts.schema);
+        let stmt = sql::dml::get_app(&self.opts.schema);
         let app: Option<App> = sqlx::query_as(&stmt).fetch_optional(&self.pool).await?;
         Ok(app)
     }
