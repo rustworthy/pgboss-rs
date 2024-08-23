@@ -1,8 +1,8 @@
 POSTGRES_CONTAINER_NAME=pgboss
 POSTGRES_HOST=127.0.0.1
 POSTGRES_PORT=5444
-POSTGRES_USER=pgboss_user
-POSTGRES_PASSWORD=pgboss_password
+POSTGRES_USER=username
+POSTGRES_PASSWORD=password
 POSTGRES_DATABASE=pgboss
 
 .PHONY: precommit
@@ -24,14 +24,10 @@ doc:
 
 .PHONY: postgres
 postgres:
-	docker ps | grep -i ${POSTGRES_CONTAINER_NAME} || \
-	docker run -d --name ${POSTGRES_CONTAINER_NAME} \
-	-p ${POSTGRES_HOST}:${POSTGRES_PORT}:5432 \
-	-e POSTGRES_USER=${POSTGRES_USER} \
-	-e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
-	-e POSTGRES_DB=${POSTGRES_DATABASE} \
-	postgres
-	sleep 15
+	docker compose -f docker/compose.yaml up -d
+	docker ps
+	sleep 10
+	docker compose -f docker/compose.yaml logs postgres --tail 10
 
 .PHONY: postgres/start
 postgres/start:
@@ -39,11 +35,11 @@ postgres/start:
 
 .PHONY: postgres/psql
 postgres/psql:
-	docker exec -it pgboss sh -c "psql -U pgboss_user pgboss"
+	docker exec -it pgboss sh -c "psql -U username pgboss"
 
 .PHONY: postgres/kill
 postgres/kill:
-	docker stop ${POSTGRES_CONTAINER_NAME} && docker rm ${POSTGRES_CONTAINER_NAME}
+	docker compose -f docker/compose.yaml down -v
 
 .PHONY: test/doc
 test/doc:

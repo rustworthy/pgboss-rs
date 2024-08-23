@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: "127.0.0.1"
+      POSTGRES_DB: "pgboss"
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "127.0.0.1:5444:5432"
+    container_name: "pgboss"

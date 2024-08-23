@@ -26,8 +26,8 @@ pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, sqlx::Error
 }
 
 pub(crate) async fn create_pool_with(opts: PgConnectOptions) -> Result<PgPool, sqlx::Error> {
-    Ok(PgPoolOptions::new()
+    PgPoolOptions::new()
         .max_connections(10)
         .connect_with(opts)
-        .await?)
+        .await
 }

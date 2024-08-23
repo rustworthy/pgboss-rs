@@ -23,6 +23,6 @@ where
 }
 
 pub(crate) async fn drop_schema(schema: &str) -> Result<(), sqlx::Error> {
-    let stmt = format!("DROP SCHEMA {} CASCADE", schema);
+    let stmt = format!("DROP SCHEMA IF EXISTS {} CASCADE", schema);
     ad_hoc_sql([stmt]).await
 }
