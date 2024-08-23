@@ -1,13 +1,21 @@
 services:
   postgres:
-    image: postgres
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
     environment:
       POSTGRES_USER: username
       POSTGRES_PASSWORD: password
       POSTGRES_HOST: "127.0.0.1"
       POSTGRES_DB: "pgboss"
-    volumes:
-      - ./certs:/certs:ro
     ports:
       - "127.0.0.1:5444:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "ssl=on"
+      - "-c"
+      - "ssl_cert_file=/var/lib/postgresql/certs/pgboss.local.crt"
+      - "-c"     
+      - "ssl_key_file=/var/lib/postgresql/certs/pgboss.local.key"
     container_name: "pgboss"
