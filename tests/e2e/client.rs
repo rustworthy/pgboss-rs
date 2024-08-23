@@ -1,6 +1,7 @@
-use crate::utils;
+use crate::utils::{self, POSRGRES_URL};
 use chrono::Utc;
 use pgboss::{Client, QueueOptions};
+use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
 async fn simple_connect() {
@@ -8,7 +9,25 @@ async fn simple_connect() {
     // This will crate `pgboss` schema, which is does not
     // allow us to isolate tests properly, so we only use it
     // once in this test - sanity check.
+    //
+    // We are also leaving it behind to able to inspect the db with psql.
     let _c = Client::connect().await.unwrap();
+}
+
+#[tokio::test]
+async fn bring_your_own_pool() {
+    let local = "bring_your_own_pool";
+    let p = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&POSRGRES_URL)
+        .await
+        .unwrap();
+    let _c = Client::builder()
+        .schema(local)
+        .connect_with(p)
+        .await
+        .unwrap();
+    utils::drop_schema(local).await.unwrap();
 }
 
 #[tokio::test]
