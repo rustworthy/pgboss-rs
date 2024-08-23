@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use crate::queue::QueueOptions;
 use crate::sql;
 use crate::utils;
+use sqlx::postgres::PgConnectOptions;
 use sqlx::postgres::PgPool;
 use sqlx::types::Json;
 
@@ -16,17 +17,23 @@ impl Client {
     /// Connect to the PostgreSQL server.
     pub async fn connect() -> Result<Client, sqlx::Error> {
         let pool = utils::create_pool(None).await?;
-        Client::connect_with(pool).await
+        Client::use_pool(pool).await
     }
 
-    /// Connect to the PostgreSQL server.
+    /// Connect to the PostgreSQL server using specific url.
     pub async fn connect_to(url: &str) -> Result<Client, sqlx::Error> {
         let pool = utils::create_pool(Some(url)).await?;
-        Client::connect_with(pool).await
+        Client::use_pool(pool).await
+    }
+
+    // Connect to the PostgreSQL server using specific `PgConnectOptions`
+    pub async fn connect_with(opts: PgConnectOptions) -> Result<Self, sqlx::Error> {
+        let pool = utils::create_pool_with(opts).await?;
+        Client::use_pool(pool).await
     }
 
     /// Bring your own pool.
-    pub async fn connect_with(pool: PgPool) -> Result<Self, sqlx::Error> {
+    pub async fn use_pool(pool: PgPool) -> Result<Self, sqlx::Error> {
         let opts = opts::ClientOptions::default();
         Client::new(pool, opts).await
     }

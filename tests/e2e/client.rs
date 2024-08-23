@@ -17,16 +17,13 @@ async fn simple_connect() {
 #[tokio::test]
 async fn bring_your_own_pool() {
     let local = "bring_your_own_pool";
+    let url = format!("{}?sslmode=require", &POSRGRES_URL.as_str());
     let p = PgPoolOptions::new()
         .max_connections(1)
-        .connect(&POSRGRES_URL)
+        .connect(&url)
         .await
         .unwrap();
-    let _c = Client::builder()
-        .schema(local)
-        .connect_with(p)
-        .await
-        .unwrap();
+    let _c = Client::builder().schema(local).use_pool(p).await.unwrap();
     utils::drop_schema(local).await.unwrap();
 }
 

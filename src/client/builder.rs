@@ -1,4 +1,4 @@
-use sqlx::postgres::PgPool;
+use sqlx::postgres::{PgConnectOptions, PgPool};
 
 use super::{opts, Client};
 use crate::utils;
@@ -25,23 +25,29 @@ impl ClientBuilder {
         self
     }
 
+    /// Connect to the PostgreSQL server.
+    pub async fn connect(self) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(None).await?;
+        self.use_pool(pool).await
+    }
+
+    /// Connect to the PostgreSQL server using specifi url.
+    pub async fn connect_to(self, url: &str) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool(Some(url)).await?;
+        self.use_pool(pool).await
+    }
+
+    // Connect to the PostgreSQL server using specific `PgConnectOptions`
+    pub async fn connect_with(opts: PgConnectOptions) -> Result<Client, sqlx::Error> {
+        let pool = utils::create_pool_with(opts).await?;
+        Client::use_pool(pool).await
+    }
+
     /// Bring your own pool.
-    pub async fn connect_with(self, pool: PgPool) -> Result<Client, sqlx::Error> {
+    pub async fn use_pool(self, pool: PgPool) -> Result<Client, sqlx::Error> {
         let opts = opts::ClientOptions {
             schema: self.schema,
         };
         Client::new(pool, opts).await
-    }
-
-    /// Connect to the PostgreSQL server.
-    pub async fn connect_to(self, url: &str) -> Result<Client, sqlx::Error> {
-        let pool = utils::create_pool(Some(url)).await?;
-        self.connect_with(pool).await
-    }
-
-    /// Connect to the PostgreSQL server.
-    pub async fn connect(self) -> Result<Client, sqlx::Error> {
-        let pool = utils::create_pool(None).await?;
-        self.connect_with(pool).await
     }
 }
