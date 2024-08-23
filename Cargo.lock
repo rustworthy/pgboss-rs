@@ -781,6 +781,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "lazy_static",
+ "serde",
  "sqlx",
  "tokio",
 ]

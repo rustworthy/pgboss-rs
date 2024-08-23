@@ -1,9 +1,10 @@
 use crate::utils;
 use chrono::Utc;
-use pgboss::Client;
+use pgboss::{Client, QueueOptions};
 
 #[tokio::test]
 async fn simple_connect() {
+    utils::drop_schema("pgboss").await.unwrap();
     // This will crate `pgboss` schema, which is does not
     // allow us to isolate tests properly, so we only use it
     // once in this test - sanity check.
@@ -61,4 +62,15 @@ async fn v21_app_already_exists() {
 
     let _c = Client::builder().schema(local).connect().await.unwrap();
     utils::drop_schema(local).await.unwrap();
+}
+
+#[tokio::test]
+async fn create_queue() {
+    let local = "create_queue";
+    utils::drop_schema(local).await.unwrap();
+    let client = Client::builder().schema(local).connect().await.unwrap();
+    client
+        .create_queue("job_type", QueueOptions::default())
+        .await
+        .unwrap();
 }

@@ -1,5 +1,6 @@
 pub(crate) mod ddl;
 pub(crate) mod dml;
+pub(crate) mod proc;
 
 fn locked<I>(schema: &str, stmts: I) -> String
 where
@@ -43,7 +44,7 @@ pub(crate) fn install_app(schema: &str) -> String {
             ddl::create_subscription_table(schema),
             ddl::create_job_table(schema),
             ddl::create_archive_table(schema),
-            ddl::create_create_queue_function(schema),
+            proc::create_create_queue_function(schema),
             // ...
             dml::insert_version(schema, crate::CURRENT_PGBOSS_APP_VERSION),
         ],

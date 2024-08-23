@@ -1,7 +1,10 @@
-use sqlx::postgres::PgPool;
+use std::borrow::Borrow;
 
+use crate::queue::QueueOptions;
 use crate::utils;
 use crate::{app::App, sql};
+use sqlx::postgres::PgPool;
+use sqlx::types::Json;
 
 mod builder;
 mod opts;
@@ -79,7 +82,17 @@ impl Client {
     }
 
     /// Registers a new queue in the database.
-    pub async fn create_queue() -> Result<(), sqlx::Error> {
-        Ok(())
+    pub async fn create_queue<S, Q>(&self, qname: S, opts: Q) -> Result<(), sqlx::Error>
+    where
+        S: AsRef<str>,
+        Q: Borrow<QueueOptions>,
+    {
+        let stmt = sql::proc::create_queue(&self.opts.schema);
+        sqlx::query(&stmt)
+            .bind(qname.as_ref())
+            .bind(Json(opts.borrow()))
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
     }
 }
