@@ -48,7 +48,12 @@ test/doc:
 .PHONY: test/e2e
 test/e2e:
 	POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE} \
-	cargo test --locked --all-features --all-targets --test e2e -- --nocapture
+	cargo test --locked --all-features --all-targets --test e2e -- --nocapture --include-ignored
+
+.PHONY: test/cov
+test/cov:
+	POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE} \
+	cargo llvm-cov --locked --all-features --lcov --test e2e --output-path lcov.info -- --include-ignored
 
 .PHONY: test
 test: test/e2e

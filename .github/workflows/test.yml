@@ -20,6 +20,21 @@ jobs:
   required:
     runs-on: ubuntu-latest
     name: ubuntu / ${{ matrix.toolchain }}
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: username
+          POSTGRES_PASSWORD: password
+          POSTGRES_HOST: "127.0.0.1"
+          POSTGRES_DB: "pgboss"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 127.0.0.1:5444:5432
     strategy:
       matrix:
         # run on stable and beta to ensure that tests won't break on the next version of the rust
@@ -37,9 +52,10 @@ jobs:
         # enable this ci template to run regardless of whether the lockfile is checked in or not
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      # https://twitter.com/jonhoo/status/1571290371124260865
-      - name: cargo test --locked
-        run: cargo test --locked --all-features --all-targets
+      - name: run e2e tests
+        env:
+          POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
+        run: cargo test --locked --all-features --all-targets --test e2e -- --nocapture
       # https://github.com/rust-lang/cargo/issues/6669
       - name: cargo test --doc
         run: cargo test --locked --all-features --doc
@@ -68,6 +84,21 @@ jobs:
     # This action is run on ubuntu with the stable toolchain, as it is not expected to fail
     runs-on: ubuntu-latest
     name: ubuntu / stable / minimal-versions
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: username
+          POSTGRES_PASSWORD: password
+          POSTGRES_HOST: "127.0.0.1"
+          POSTGRES_DB: "pgboss"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 127.0.0.1:5444:5432
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,12 +111,32 @@ jobs:
         run: rustup default stable
       - name: cargo update -Zminimal-versions
         run: cargo +nightly update -Zminimal-versions
-      - name: cargo test
-        run: cargo test --locked --all-features --all-targets
+      - name: run e2e tests
+        env:
+          POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
+        run: cargo test --locked --all-features --all-targets --test e2e -- --nocapture
   os-check:
     # run cargo test on mac and windows
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} / stable
+    # Container actions are only supported on Linux runners as of August 24, 2024
+    # So we are only building the library, not running e2e tests.
+    #
+    #services:
+    #  postgres:
+    #    image: postgres:16.4
+    #    env:
+    #      POSTGRES_USER: username
+    #      POSTGRES_PASSWORD: password
+    #      POSTGRES_HOST: "127.0.0.1"
+    #      POSTGRES_DB: "pgboss"
+    #    options: >-
+    #      --health-cmd pg_isready
+    #      --health-interval 10s
+    #      --health-timeout 5s
+    #      --health-retries 5
+    #    ports:
+    #      - 127.0.0.1:5444:5432
     strategy:
       fail-fast: false
       matrix:
@@ -105,8 +156,12 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo test
-        run: cargo test --locked --all-features --all-targets
+      - name: cargo build --release
+        run: cargo build --all-features --all-targets
+      #- name: run e2e tests
+      #  env:
+      #    POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
+      #  run: cargo test --locked --all-features --all-targets --test e2e -- --nocapture
   coverage:
     # use llvm-cov to build and collect coverage and outputs in a format that
     # is compatible with codecov.io
@@ -144,8 +199,16 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
+      - name: ensure PostgeSQL service
+        run: |
+          docker compose -f docker/compose.yaml up -d --build
+          docker ps
+          sleep 10
+          docker compose -f docker/compose.yaml logs postgres --tail 10
       - name: cargo llvm-cov
-        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
+        env:
+          POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
+        run: cargo llvm-cov --locked --all-features --test e2e --lcov --output-path lcov.info -- include-ignored
       - name: Record Rust version
         run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
       - name: Upload to codecov.io

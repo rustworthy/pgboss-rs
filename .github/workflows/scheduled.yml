@@ -8,7 +8,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron:  '7 7 * * *'
+    - cron: "7 7 * * *"
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -27,8 +27,16 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo test --locked
-        run: cargo test --locked --all-features --all-targets
+      - name: ensure PostgreSQL service
+        run: |
+          docker compose -f docker/compose.yaml up -d --build
+          docker ps
+          sleep 10
+          docker compose -f docker/compose.yaml logs postgres --tail 10
+      - name: run e2e tests
+        env:
+          POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
+        run: cargo test --locked --all-features --all-targets --test e2e -- --nocapture
   # https://twitter.com/alcuadrado/status/1571291687837732873
   update:
     # This action checks that updating the dependencies of this crate to the latest available that
@@ -51,8 +59,16 @@ jobs:
       - name: cargo update
         if: hashFiles('Cargo.lock') != ''
         run: cargo update
-      - name: cargo test
+      - name: ensure PostgreSQL service
         if: hashFiles('Cargo.lock') != ''
-        run: cargo test --locked --all-features --all-targets
+        run: |
+          docker compose -f docker/compose.yaml up -d --build
+          docker ps
+          sleep 10
+          docker compose -f docker/compose.yaml logs postgres --tail 10
+      - name: run e2e tests
+        if: hashFiles('Cargo.lock') != ''
         env:
+          POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
           RUSTFLAGS: -D deprecated
+        run: cargo test --locked --all-features --all-targets --test e2e -- --nocapture

@@ -14,6 +14,9 @@ async fn simple_connect() {
     let _c = Client::connect().await.unwrap();
 }
 
+// On CI - when running on Ubuntu with our postgres service with TLS enabled - use '--include-ignored'
+// to run this test, just like we do with `make test` and `make test/cov`
+#[ignore = "this test requires a dedicated test run aganst PostgreSQL server with TLS enabled"]
 #[tokio::test]
 async fn bring_your_own_pool() {
     let local = "bring_your_own_pool";
