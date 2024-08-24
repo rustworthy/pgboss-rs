@@ -1,3 +1,7 @@
+//! Crate docs
+#![deny(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod client;
 mod job;
 mod queue;

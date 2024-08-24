@@ -208,7 +208,7 @@ jobs:
       - name: cargo llvm-cov
         env:
           POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
-        run: cargo llvm-cov --locked --all-features --test e2e --lcov --output-path lcov.info -- include-ignored
+        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info -- --include-ignored
       - name: Record Rust version
         run: echo "RUST=$(rustc --version)" >> "$GITHUB_ENV"
       - name: Upload to codecov.io

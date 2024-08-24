@@ -7,6 +7,7 @@ mod public;
 
 pub use builder::ClientBuilder;
 
+/// PgBoss client.
 #[derive(Debug, Clone)]
 pub struct Client {
     pool: PgPool,

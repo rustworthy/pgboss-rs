@@ -18,6 +18,7 @@ check:
 	cargo clippy --all-features
 	cargo d --no-deps --all-features
 
+# https://users.rust-lang.org/t/how-to-document-optional-features-in-api-docs/64577/3
 .PHONY: doc
 doc:
 	RUSTDOCFLAGS='--cfg docsrs' cargo +nightly d --all-features --open

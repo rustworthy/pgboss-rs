@@ -3,6 +3,7 @@ use sqlx::postgres::{PgConnectOptions, PgPool};
 use super::{opts, Client};
 use crate::utils;
 
+/// Builder for [`Client`].
 #[derive(Debug, Clone)]
 pub struct ClientBuilder {
     schema: String,
@@ -17,6 +18,7 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
+    /// Schema name.
     pub fn schema<S>(mut self, schema: S) -> Self
     where
         S: Into<String>,
@@ -37,7 +39,7 @@ impl ClientBuilder {
         self.use_pool(pool).await
     }
 
-    // Connect to the PostgreSQL server using specific `PgConnectOptions`
+    /// Connect to the PostgreSQL server using specific `PgConnectOptions`
     pub async fn connect_with(opts: PgConnectOptions) -> Result<Client, sqlx::Error> {
         let pool = utils::create_pool_with(opts).await?;
         Client::use_pool(pool).await

@@ -7,11 +7,12 @@ use sqlx::postgres::PgConnectOptions;
 use sqlx::postgres::PgPool;
 use sqlx::types::Json;
 
-use super::{builder, opts, Client};
+use super::{builder::ClientBuilder, opts, Client};
 
 impl Client {
-    pub fn builder() -> builder::ClientBuilder {
-        builder::ClientBuilder::default()
+    /// Create an instance of [`ClientBuilder`]
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::default()
     }
 
     /// Connect to the PostgreSQL server.
@@ -26,7 +27,7 @@ impl Client {
         Client::use_pool(pool).await
     }
 
-    // Connect to the PostgreSQL server using specific `PgConnectOptions`
+    /// Connect to the PostgreSQL server using specific `PgConnectOptions`
     pub async fn connect_with(opts: PgConnectOptions) -> Result<Self, sqlx::Error> {
         let pool = utils::create_pool_with(opts).await?;
         Client::use_pool(pool).await

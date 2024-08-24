@@ -23,7 +23,9 @@ impl std::fmt::Display for QueuePolicy {
     }
 }
 
+/// Queue configuration.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct QueueOptions {
+    /// Policy to apply to this queue.
     pub policy: QueuePolicy,
 }
