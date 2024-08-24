@@ -11,7 +11,8 @@ async fn simple_connect() {
     // once in this test - sanity check.
     //
     // We are also leaving it behind to able to inspect the db with psql.
-    let _c = Client::connect().await.unwrap();
+    Client::connect().await.unwrap();
+    Client::connect_to(POSRGRES_URL.as_str()).await.unwrap();
 }
 
 #[tokio::test]
@@ -92,6 +93,40 @@ async fn v21_app_already_exists() {
 
     let _c = Client::builder().schema(local).connect().await.unwrap();
     utils::drop_schema(local).await.unwrap();
+}
+
+#[tokio::test]
+#[should_panic(expected = "Cannot migrate from the currently installed PgBoss application.")]
+async fn less_than_v21_app_already_exists() {
+    let local = "less_than_v21_app_already_exists";
+    utils::drop_schema(local).await.unwrap();
+
+    let create_schema_stmt = format!("CREATE SCHEMA {local};");
+    let create_version_table_stmt = format!(
+        "
+        CREATE TABLE {local}.version (
+            version int primary key,
+            maintained_on timestamp with time zone,
+            cron_on timestamp with time zone
+        );
+        "
+    );
+    let insert_app_stmt = format!(
+        "INSERT INTO {local}.version VALUES ('{}', '{}','{}')",
+        20,
+        Utc::now(),
+        Utc::now()
+    );
+
+    utils::ad_hoc_sql([
+        create_schema_stmt,
+        create_version_table_stmt,
+        insert_app_stmt,
+    ])
+    .await
+    .unwrap();
+
+    let _c = Client::builder().schema(local).connect().await.unwrap();
 }
 
 #[tokio::test]
