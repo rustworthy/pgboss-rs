@@ -17,16 +17,16 @@ default = []
 [dependencies]
 chrono = { version = "0.4.38", features = [] }
 serde = { version = "1.0.208", features = ["derive"] }
-sqlx = { version = "0.8.0", features = [
-    "runtime-tokio",
-    "postgres",
-    "chrono",
-    "tls-rustls",
-] }
+sqlx = { version = "0.8.0", features = ["runtime-tokio", "postgres", "chrono"] }
 
 [dev-dependencies]
 lazy_static = "1.5.0"
 tokio = { version = "1.39.2", features = ["macros", "rt"] }
+sqlx = { version = "0.8.0", features = [
+    "runtime-tokio",
+    "postgres",
+    "tls-rustls",
+] }
 
 [package.metadata.docs.rs]
 all-features = true

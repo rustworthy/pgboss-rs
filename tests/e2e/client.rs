@@ -14,19 +14,30 @@ async fn simple_connect() {
     let _c = Client::connect().await.unwrap();
 }
 
+#[tokio::test]
+async fn connect_to() {
+    let local = "connect_to";
+    let _c = Client::builder()
+        .schema(local)
+        .connect_to(POSRGRES_URL.as_str())
+        .await
+        .unwrap();
+    utils::drop_schema(local).await.unwrap();
+}
+
 // On CI - when running on Ubuntu with our postgres service with TLS enabled - use '--include-ignored'
 // to run this test, just like we do with `make test` and `make test/cov`
 #[ignore = "this test requires a dedicated test run aganst PostgreSQL server with TLS enabled"]
 #[tokio::test]
 async fn bring_your_own_pool() {
     let local = "bring_your_own_pool";
-    let url = format!("{}?sslmode=require", &POSRGRES_URL.as_str());
+    let url = format!("{}?sslmode=require", POSRGRES_URL.as_str());
     let p = PgPoolOptions::new()
         .max_connections(1)
         .connect(&url)
         .await
         .unwrap();
-    let _c = Client::builder().schema(local).use_pool(p).await.unwrap();
+    let _c = Client::builder().schema(local).with_pool(p).await.unwrap();
     utils::drop_schema(local).await.unwrap();
 }
 

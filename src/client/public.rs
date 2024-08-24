@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use crate::queue::QueueOptions;
 use crate::sql;
 use crate::utils;
-use sqlx::postgres::PgConnectOptions;
 use sqlx::postgres::PgPool;
 use sqlx::types::Json;
 
@@ -18,23 +17,23 @@ impl Client {
     /// Connect to the PostgreSQL server.
     pub async fn connect() -> Result<Client, sqlx::Error> {
         let pool = utils::create_pool(None).await?;
-        Client::use_pool(pool).await
+        Client::with_pool(pool).await
     }
 
     /// Connect to the PostgreSQL server using specific url.
-    pub async fn connect_to(url: &str) -> Result<Client, sqlx::Error> {
-        let pool = utils::create_pool(Some(url)).await?;
-        Client::use_pool(pool).await
-    }
-
-    /// Connect to the PostgreSQL server using specific `PgConnectOptions`
-    pub async fn connect_with(opts: PgConnectOptions) -> Result<Self, sqlx::Error> {
-        let pool = utils::create_pool_with(opts).await?;
-        Client::use_pool(pool).await
+    ///
+    /// To configure `ssl` (e.g. `sslmode=require`), you will need to build
+    /// your own `Pool` and use [`ClientBuilder::with_pool`] method instead.
+    pub async fn connect_to<S>(url: S) -> Result<Client, sqlx::Error>
+    where
+        S: AsRef<str>,
+    {
+        let pool = utils::create_pool(Some(url.as_ref())).await?;
+        Client::with_pool(pool).await
     }
 
     /// Bring your own pool.
-    pub async fn use_pool(pool: PgPool) -> Result<Self, sqlx::Error> {
+    pub async fn with_pool(pool: PgPool) -> Result<Self, sqlx::Error> {
         let opts = opts::ClientOptions::default();
         Client::new(pool, opts).await
     }

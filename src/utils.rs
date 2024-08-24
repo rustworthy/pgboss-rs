@@ -1,7 +1,4 @@
-use sqlx::{
-    postgres::{PgConnectOptions, PgPoolOptions},
-    PgPool,
-};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, sqlx::Error> {
     let pool = match url {
@@ -23,11 +20,4 @@ pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, sqlx::Error
         }
     };
     Ok(pool)
-}
-
-pub(crate) async fn create_pool_with(opts: PgConnectOptions) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new()
-        .max_connections(10)
-        .connect_with(opts)
-        .await
 }
