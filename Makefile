@@ -24,7 +24,7 @@ doc:
 
 .PHONY: postgres
 postgres:
-	docker compose -f docker/compose.yaml up -d
+	docker compose -f docker/compose.yaml up -d --build
 	docker ps
 	sleep 10
 	docker compose -f docker/compose.yaml logs postgres --tail 10
