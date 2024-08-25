@@ -25,9 +25,9 @@ impl Client {
     ///
     /// To configure `ssl` (e.g. `sslmode=require`), you will need to build
     /// your own `Pool` and use [`ClientBuilder::with_pool`] method instead.
-    pub async fn connect_to<S>(url: S) -> Result<Client, sqlx::Error>
+    pub async fn connect_to<U>(url: U) -> Result<Client, sqlx::Error>
     where
-        S: AsRef<str>,
+        U: AsRef<str>,
     {
         let pool = utils::create_pool(Some(url.as_ref())).await?;
         Client::with_pool(pool).await
@@ -55,9 +55,9 @@ impl Client {
     }
 
     /// Registers a standard queue in the database.
-    pub async fn create_standard_queue<S>(&self, name: S) -> Result<(), sqlx::Error>
+    pub async fn create_standard_queue<Q>(&self, name: Q) -> Result<(), sqlx::Error>
     where
-        S: AsRef<str>,
+        Q: AsRef<str>,
     {
         let q_opts = QueueOptions {
             name: name.as_ref(),
@@ -66,11 +66,23 @@ impl Client {
         self.create_queue(q_opts).await
     }
 
-    /// Returns all queues.
+    /// Returns [`QueueInfo`] on the queue with this name, if any.
+    pub async fn get_queue<Q>(&self, queue_name: Q) -> Result<Option<QueueInfo>, sqlx::Error>
+    where
+        Q: AsRef<str>,
+    {
+        let stmt = sql::dml::get_queue(&self.opts.schema);
+        let queue: Option<QueueInfo> = sqlx::query_as(&stmt)
+            .bind(queue_name.as_ref())
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(queue)
+    }
+
+    /// Return info on all the queues in the system.
     pub async fn get_queues(&self) -> Result<Vec<QueueInfo>, sqlx::Error> {
-        let stmt = sql::dml::get_all_queues(&self.opts.schema);
-        let queues = sqlx::query_as(&stmt).fetch_all(&self.pool).await;
-        let queues: Vec<QueueInfo> = queues?;
+        let stmt = sql::dml::get_queues(&self.opts.schema);
+        let queues: Vec<QueueInfo> = sqlx::query_as(&stmt).fetch_all(&self.pool).await?;
         Ok(queues)
     }
 }

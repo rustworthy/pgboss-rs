@@ -139,10 +139,12 @@ async fn create_standard_queue() {
     let client = Client::builder().schema(local).connect().await.unwrap();
     client.create_standard_queue("job_type").await.unwrap();
 
-    let queues = client.get_queues().await.unwrap();
-    assert_eq!(queues.len(), 1);
+    let q = client
+        .get_queue("job_type")
+        .await
+        .expect("no error")
+        .expect("queue info");
 
-    let q = queues.first().unwrap();
     assert_eq!(q.name, "job_type");
     assert_eq!(q.policy, QueuePolicy::Standard);
     assert_eq!(q.retry_limit, None);
