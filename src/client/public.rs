@@ -85,4 +85,20 @@ impl Client {
         let queues: Vec<QueueInfo> = sqlx::query_as(&stmt).fetch_all(&self.pool).await?;
         Ok(queues)
     }
+
+    /// Deletes a named queue.
+    ///
+    /// Deletes a queue and all jobs from the active job table.
+    /// Any jobs in the archive table are retained.
+    pub async fn delete_queue<Q>(&self, queue_name: Q) -> Result<(), sqlx::Error>
+    where
+        Q: AsRef<str>,
+    {
+        let stmt = sql::proc::delete_queue(&self.opts.schema);
+        sqlx::query(&stmt)
+            .bind(queue_name.as_ref())
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
+    }
 }

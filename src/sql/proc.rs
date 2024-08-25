@@ -66,3 +66,28 @@ pub(super) fn create_create_queue_function(schema: &str) -> String {
 pub(crate) fn create_queue(schema: &str) -> String {
     format!("SELECT {schema}.create_queue($1, $2);")
 }
+
+pub(super) fn create_delete_queue_function(schema: &str) -> String {
+    format!(
+        r#"
+        CREATE OR REPLACE FUNCTION {schema}.delete_queue(queue_name text)
+        RETURNS VOID AS
+        $$
+        DECLARE
+            table_name varchar;
+        BEGIN
+            WITH deleted as (
+                DELETE FROM {schema}.queue WHERE name = queue_name RETURNING partition_name
+            )
+            SELECT partition_name FROM deleted INTO table_name;
+            EXECUTE format('DROP TABLE IF EXISTS {schema}.%I', table_name);
+        END;
+        $$
+        LANGUAGE plpgsql;
+        "#
+    )
+}
+
+pub(crate) fn delete_queue(schema: &str) -> String {
+    format!("SELECT {schema}.delete_queue($1);")
+}
