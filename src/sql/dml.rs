@@ -18,3 +18,22 @@ pub(crate) fn insert_version(schema: &str, version: u8) -> String {
         version
     )
 }
+
+pub(crate) fn get_all_queues(schema: &str) -> String {
+    format!(
+        "
+        SELECT
+            name,
+            policy,
+            retry_limit,
+            retry_delay,
+            retry_backoff,
+            expire_seconds,
+            retention_minutes,
+            dead_letter,
+            created_on,
+            updated_on
+        FROM {schema}.queue;
+        "
+    )
+}

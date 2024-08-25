@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use crate::utils::{self, POSRGRES_URL};
 use chrono::Utc;
-use pgboss::{Client, QueueOptions};
+use pgboss::{Client, QueueOptions, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
@@ -130,12 +132,64 @@ async fn less_than_v21_app_already_exists() {
 }
 
 #[tokio::test]
-async fn create_queue() {
-    let local = "create_queue";
+async fn create_standard_queue() {
+    let local = "create_standard_queue";
     utils::drop_schema(local).await.unwrap();
+
     let client = Client::builder().schema(local).connect().await.unwrap();
-    client
-        .create_queue("job_type", QueueOptions::default())
-        .await
+    client.create_standard_queue("job_type").await.unwrap();
+
+    let queues = client.get_queues().await.unwrap();
+    assert_eq!(queues.len(), 1);
+
+    let q = queues.first().unwrap();
+    assert_eq!(q.name, "job_type");
+    assert_eq!(q.policy, QueuePolicy::Standard);
+    assert_eq!(q.retry_limit, None);
+    assert_eq!(q.retry_delay, None);
+    assert_eq!(q.retry_backoff, None);
+    assert_eq!(q.expire_in, None);
+    assert_eq!(q.retain_for, None);
+    assert_eq!(q.dead_letter, None);
+}
+
+#[tokio::test]
+async fn create_non_standard_queue() {
+    let local = "create_non_standard_queue";
+    utils::drop_schema(local).await.unwrap();
+
+    let client = Client::builder().schema(local).connect().await.unwrap();
+    let dlq_opts = QueueOptions {
+        name: "image_processing_dlq",
+        ..Default::default()
+    };
+    client.create_queue(&dlq_opts).await.unwrap();
+
+    let queue_opts = QueueOptions {
+        name: "image_processing",
+        policy: QueuePolicy::Singleton,
+        retry_limit: Some(3),
+        retry_delay: Some(Duration::from_secs(10)),
+        retry_backoff: Some(true),
+        expire_in: Some(Duration::from_secs(60 * 60)),
+        retain_for: Some(Duration::from_secs(60 * 60 * 24)),
+        dead_letter: Some(&dlq_opts.name),
+    };
+    client.create_queue(&queue_opts).await.unwrap();
+
+    let queues = client.get_queues().await.unwrap();
+    assert_eq!(queues.len(), 2); // queue + dlq
+
+    let q = queues
+        .iter()
+        .find(|&q| q.name == "image_processing")
         .unwrap();
+    assert_eq!(q.name, "image_processing");
+    assert_eq!(q.policy, QueuePolicy::Singleton);
+    assert_eq!(q.retry_limit.unwrap(), 3);
+    assert_eq!(q.retry_delay.unwrap(), Duration::from_secs(10));
+    assert_eq!(q.retry_backoff.unwrap(), true);
+    assert_eq!(q.expire_in.unwrap(), Duration::from_secs(60 * 60));
+    assert_eq!(q.retain_for.unwrap(), Duration::from_secs(60 * 60 * 24));
+    assert_eq!(q.dead_letter.as_ref().unwrap(), dlq_opts.name);
 }

@@ -9,7 +9,7 @@ mod sql;
 mod utils;
 
 pub use client::{Client, ClientBuilder};
-pub use queue::QueueOptions;
+pub use queue::{QueueInfo, QueueOptions, QueuePolicy};
 
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
