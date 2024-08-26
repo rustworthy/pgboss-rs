@@ -1,11 +1,13 @@
 use std::borrow::Borrow;
 
+use crate::job::Job;
 use crate::queue::QueueOptions;
 use crate::sql;
 use crate::utils;
 use crate::QueueInfo;
 use sqlx::postgres::PgPool;
 use sqlx::types::Json;
+use uuid::Uuid;
 
 use super::{builder::ClientBuilder, opts, Client};
 
@@ -100,5 +102,14 @@ impl Client {
             .execute(&self.pool)
             .await
             .map(|_| ())
+    }
+
+    /// Enqueue a job.
+    pub async fn send<J>(&self, job: J) -> Result<Option<Uuid>, sqlx::Error>
+    where
+        J: Into<Job>,
+    {
+        println!("{:?}", job.into());
+        Ok(None)
     }
 }

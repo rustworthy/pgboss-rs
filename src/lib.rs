@@ -9,6 +9,7 @@ mod sql;
 mod utils;
 
 pub use client::{Client, ClientBuilder};
+pub use job::Job;
 pub use queue::{QueueInfo, QueueOptions, QueuePolicy};
 
 use chrono::{DateTime, Utc};

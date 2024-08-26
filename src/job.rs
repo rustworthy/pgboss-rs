@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum JobState {
     Created,
@@ -21,3 +23,7 @@ impl std::fmt::Display for JobState {
         write!(f, "{}", s)
     }
 }
+
+/// A job to be sent to the server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Job {}
