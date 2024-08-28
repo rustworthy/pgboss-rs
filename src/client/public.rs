@@ -105,11 +105,37 @@ impl Client {
     }
 
     /// Enqueue a job.
-    pub async fn send<J>(&self, job: J) -> Result<Option<Uuid>, sqlx::Error>
+    pub async fn send_job<J>(&self, job: J) -> Result<Option<Uuid>, sqlx::Error>
     where
         J: Into<Job>,
     {
-        println!("{:?}", job.into());
-        Ok(None)
+        let stmt = sql::proc::create_job(&self.opts.schema);
+        let id: Option<Uuid> = sqlx::query_scalar(&stmt)
+            .bind(Option::<Uuid>::None)
+            .bind("send_job")
+            .bind(Json(serde_json::json!({})))
+            .bind(Json(serde_json::json!({})))
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(id)
+    }
+
+    /// Create and enqueue a job.
+    pub async fn send<Q, D>(&self, name: Q, data: D) -> Result<Option<Uuid>, sqlx::Error>
+    where
+        Q: AsRef<str>,
+        D: Into<serde_json::Value>,
+    {
+        let stmt = sql::proc::create_job(&self.opts.schema);
+        let id: Option<Uuid> = sqlx::query_scalar(&stmt)
+            .bind(Option::<Uuid>::None)
+            .bind(name.as_ref())
+            .bind(Json(data.into()))
+            .bind(Json(serde_json::json!({})))
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(id)
     }
 }

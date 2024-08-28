@@ -202,7 +202,19 @@ async fn delete_queue() {
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
+
     client.create_standard_queue("job_type_1").await.unwrap();
+
+    // let's try to create a duplicate
+    let err = client
+        .create_standard_queue("job_type_1")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        err.into_database_error().unwrap().constraint().unwrap(),
+        "queue_pkey"
+    );
+
     client.create_standard_queue("job_type_2").await.unwrap();
 
     assert!(client

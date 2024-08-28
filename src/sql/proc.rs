@@ -70,6 +70,7 @@ pub(crate) fn create_queue(schema: &str) -> String {
 pub(super) fn create_delete_queue_function(schema: &str) -> String {
     format!(
         r#"
+
         CREATE OR REPLACE FUNCTION {schema}.delete_queue(queue_name text)
         RETURNS VOID AS
         $$
@@ -90,4 +91,97 @@ pub(super) fn create_delete_queue_function(schema: &str) -> String {
 
 pub(crate) fn delete_queue(schema: &str) -> String {
     format!("SELECT {schema}.delete_queue($1);")
+}
+
+pub(crate) fn create_create_job_function(schema: &str) -> String {
+    format!(
+        r#"
+        CREATE OR REPLACE FUNCTION {schema}.create_job(job_id uuid, name text, data jsonb, options jsonb, OUT inserted_id uuid)
+        RETURNS uuid AS
+        $$
+        BEGIN
+        INSERT INTO {schema}.job (
+            id,
+            name,
+            data,
+            priority,
+            start_after,
+            singleton_key,
+            singleton_on,
+            dead_letter,
+            expire_in,
+            keep_until,
+            retry_limit,
+            retry_delay,
+            retry_backoff,
+            policy
+        )
+        SELECT
+            job_id_provided_or_generated,
+            j.name,
+            job_data,
+            priority,
+            start_after,
+            singleton_key,
+            singleton_on,
+            COALESCE(j.dead_letter, q.dead_letter) as dead_letter,
+            CASE
+                WHEN expire_in IS NOT NULL THEN CAST(expire_in as interval)
+                WHEN q.expire_seconds IS NOT NULL THEN q.expire_seconds * interval '1s'
+                WHEN expire_in_default IS NOT NULL THEN CAST(expire_in_default as interval)
+                ELSE interval '15 minutes'
+            END as expire_in,
+            CASE
+                WHEN right(keep_until, 1) = 'Z' THEN CAST(keep_until as timestamptz)
+                ELSE start_after + CAST(COALESCE(keep_until, (q.retention_minutes * 60)::text, keep_until_default, '14 days') as interval)
+            END as keep_until,
+            COALESCE(j.retry_limit, q.retry_limit, retry_limit_default, 2) as retry_limit,
+            CASE
+                WHEN COALESCE(j.retry_backoff, q.retry_backoff, retry_backoff_default, false)
+                THEN GREATEST(COALESCE(j.retry_delay, q.retry_delay, retry_delay_default), 1)
+                ELSE COALESCE(j.retry_delay, q.retry_delay, retry_delay_default, 0)
+            END as retry_delay,
+            COALESCE(j.retry_backoff, q.retry_backoff, retry_backoff_default, false) as retry_backoff,
+            q.policy
+        FROM (
+            SELECT 
+                COALESCE(job_id, gen_random_uuid()) as job_id_provided_or_generated,
+                name,
+                data as job_data,
+                COALESCE((options->>'priority')::int, 0) as priority,
+                CASE
+                    WHEN right(options->>'start_after', 1) = 'Z' THEN CAST(options->>'start_after' as timestamptz)
+                    ELSE now() + CAST(COALESCE(options->>'start_after','0') as interval)
+                END as start_after,
+                options->>'singleton_key' as singleton_key,
+                CASE
+                    WHEN (options->>'singleton_on')::integer IS NOT NULL THEN 'epoch'::timestamp + '1 second'::interval * ((options->>'singleton_on')::integer * floor((date_part('epoch', now()) + (options->>'singleton_offset')::integer) / (options->>'singleton_on')::integer))
+                    ELSE NULL
+                END as singleton_on,
+                options->>'dead_letter' as dead_letter,
+                options->>'expire_in' as expire_in,
+                options->>'expire_in_default' as expire_in_default,
+                options->>'keep_until' as keep_until,
+                options->>'keep_until_default' as keep_until_default,
+                (options->>'retry_limit')::integer as retry_limit,
+                (options->>'retry_limit_default')::integer as retry_limit_default,
+                (options->>'retry_delay')::integer as retry_delay,
+                (options->>'retry_delay_default')::integer as retry_delay_default,
+                (options->>'retry_backoff')::boolean as retry_backoff,
+                (options->>'retry_backoff_default')::boolean as retry_backoff_default
+            ) j JOIN {schema}.queue q ON j.name = q.name
+        ON CONFLICT DO NOTHING
+        RETURNING id INTO inserted_id;
+        END;
+        $$
+        LANGUAGE plpgsql;
+        "#
+    )
+}
+///                  id                  |      name      | priority | data |  state  | retry_limit | retry_count | retry_delay | retry_backoff |          start_after          | started_on | singleton_key | singleton_on | expire_in |          created_on           | completed_on |          keep_until           | output | dead_letter |  policy  
+/// --------------------------------------+----------------+----------+------+---------+-------------+-------------+-------------+---------------+-------------------------------+------------+---------------+--------------+-----------+-------------------------------+--------------+-------------------------------+--------+-------------+----------
+/// cb1144a7-5fd3-49df-a691-01ba1e1f06a7 | send_job_queue |        0 | {}   | created |           2 |           0 |           0 | f             | 2024-08-27 19:39:24.933367+00 |            |               |              | 00:15:00  | 2024-08-27 19:39:24.933367+00 |              | 2024-09-10 19:39:24.933367+00 |        |             | standard
+/// (1 row)
+pub(crate) fn create_job(schema: &str) -> String {
+    format!("SELECT {schema}.create_job($1, $2, $3, $4);")
 }
