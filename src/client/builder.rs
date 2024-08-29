@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPool;
 
 use super::{opts, Client};
-use crate::utils;
+use crate::{utils, Error};
 
 /// Builder for [`Client`].
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ impl ClientBuilder {
     }
 
     /// Connect to the PostgreSQL server.
-    pub async fn connect(self) -> Result<Client, sqlx::Error> {
+    pub async fn connect(self) -> Result<Client, Error> {
         let pool = utils::create_pool(None).await?;
         self.with_pool(pool).await
     }
@@ -37,7 +37,7 @@ impl ClientBuilder {
     ///
     /// To configure `ssl` (e.g. `sslmode=require`), you will need to build
     /// your own `Pool` and use [`ClientBuilder::with_pool`] method instead.
-    pub async fn connect_to<S>(self, url: S) -> Result<Client, sqlx::Error>
+    pub async fn connect_to<S>(self, url: S) -> Result<Client, Error>
     where
         S: AsRef<str>,
     {
@@ -46,10 +46,10 @@ impl ClientBuilder {
     }
 
     /// Bring your own pool.
-    pub async fn with_pool(self, pool: PgPool) -> Result<Client, sqlx::Error> {
+    pub async fn with_pool(self, pool: PgPool) -> Result<Client, Error> {
         let opts = opts::ClientOptions {
             schema: self.schema,
         };
-        Client::new(pool, opts).await
+        Ok(Client::new(pool, opts).await?)
     }
 }

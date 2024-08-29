@@ -10,6 +10,7 @@ use sqlx::types::Json;
 use uuid::Uuid;
 
 use super::{builder::ClientBuilder, opts, Client};
+use crate::Error;
 
 impl Client {
     /// Create an instance of [`ClientBuilder`]
@@ -18,7 +19,7 @@ impl Client {
     }
 
     /// Connect to the PostgreSQL server.
-    pub async fn connect() -> Result<Client, sqlx::Error> {
+    pub async fn connect() -> Result<Client, Error> {
         let pool = utils::create_pool(None).await?;
         Client::with_pool(pool).await
     }
@@ -27,7 +28,7 @@ impl Client {
     ///
     /// To configure `ssl` (e.g. `sslmode=require`), you will need to build
     /// your own `Pool` and use [`ClientBuilder::with_pool`] method instead.
-    pub async fn connect_to<U>(url: U) -> Result<Client, sqlx::Error>
+    pub async fn connect_to<U>(url: U) -> Result<Client, Error>
     where
         U: AsRef<str>,
     {
@@ -36,28 +37,28 @@ impl Client {
     }
 
     /// Bring your own pool.
-    pub async fn with_pool(pool: PgPool) -> Result<Self, sqlx::Error> {
+    pub async fn with_pool(pool: PgPool) -> Result<Self, Error> {
         let opts = opts::ClientOptions::default();
-        Client::new(pool, opts).await
+        Ok(Client::new(pool, opts).await?)
     }
 
     /// Registers a customized queue in the database.
-    pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), sqlx::Error>
+    pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), Error>
     where
         Q: Borrow<QueueOptions<'a>>,
     {
         let stmt = sql::proc::create_queue(&self.opts.schema);
         let q_opts = opts.borrow();
-        sqlx::query(&stmt)
+        Ok(sqlx::query(&stmt)
             .bind(q_opts.name)
             .bind(Json(q_opts))
             .execute(&self.pool)
             .await
-            .map(|_| ())
+            .map(|_| ())?)
     }
 
     /// Registers a standard queue in the database.
-    pub async fn create_standard_queue<Q>(&self, name: Q) -> Result<(), sqlx::Error>
+    pub async fn create_standard_queue<Q>(&self, name: Q) -> Result<(), Error>
     where
         Q: AsRef<str>,
     {
@@ -69,7 +70,7 @@ impl Client {
     }
 
     /// Returns [`QueueInfo`] on the queue with this name, if any.
-    pub async fn get_queue<Q>(&self, queue_name: Q) -> Result<Option<QueueInfo>, sqlx::Error>
+    pub async fn get_queue<Q>(&self, queue_name: Q) -> Result<Option<QueueInfo>, Error>
     where
         Q: AsRef<str>,
     {
@@ -82,7 +83,7 @@ impl Client {
     }
 
     /// Return info on all the queues in the system.
-    pub async fn get_queues(&self) -> Result<Vec<QueueInfo>, sqlx::Error> {
+    pub async fn get_queues(&self) -> Result<Vec<QueueInfo>, Error> {
         let stmt = sql::dml::get_queues(&self.opts.schema);
         let queues: Vec<QueueInfo> = sqlx::query_as(&stmt).fetch_all(&self.pool).await?;
         Ok(queues)
@@ -92,20 +93,20 @@ impl Client {
     ///
     /// Deletes a queue and all jobs from the active job table.
     /// Any jobs in the archive table are retained.
-    pub async fn delete_queue<Q>(&self, queue_name: Q) -> Result<(), sqlx::Error>
+    pub async fn delete_queue<Q>(&self, queue_name: Q) -> Result<(), Error>
     where
         Q: AsRef<str>,
     {
         let stmt = sql::proc::delete_queue(&self.opts.schema);
-        sqlx::query(&stmt)
+        Ok(sqlx::query(&stmt)
             .bind(queue_name.as_ref())
             .execute(&self.pool)
             .await
-            .map(|_| ())
+            .map(|_| ())?)
     }
 
     /// Enqueue a job.
-    pub async fn send_job<J>(&self, job: J) -> Result<Option<Uuid>, sqlx::Error>
+    pub async fn send_job<J>(&self, job: J) -> Result<Option<Uuid>, Error>
     where
         J: Into<Job>,
     {
@@ -122,7 +123,7 @@ impl Client {
     }
 
     /// Create and enqueue a job.
-    pub async fn send<Q, D>(&self, name: Q, data: D) -> Result<Option<Uuid>, sqlx::Error>
+    pub async fn send<Q, D>(&self, name: Q, data: D) -> Result<Option<Uuid>, Error>
     where
         Q: AsRef<str>,
         D: Into<serde_json::Value>,

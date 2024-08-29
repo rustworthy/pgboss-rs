@@ -3,12 +3,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod client;
+mod error;
 mod job;
 mod queue;
 mod sql;
 mod utils;
 
 pub use client::{Client, ClientBuilder};
+pub use error::Error;
 pub use job::Job;
 pub use queue::{QueueInfo, QueueOptions, QueuePolicy};
 

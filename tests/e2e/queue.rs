@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::utils::{self, POSRGRES_URL};
 use chrono::Utc;
-use pgboss::{Client, QueueOptions, QueuePolicy};
+use pgboss::{Client, Error, QueueOptions, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
@@ -163,11 +163,14 @@ async fn create_queue_already_exists() {
     let client = Client::builder().schema(local).connect().await.unwrap();
     client.create_standard_queue("job_type").await.unwrap();
 
-    let err = client.create_standard_queue("job_type").await.unwrap_err();
-    assert_eq!(
-        err.into_database_error().unwrap().constraint().unwrap(),
-        "queue_pkey"
-    );
+    if let Error::Sqlx(e) = client.create_standard_queue("job_type").await.unwrap_err() {
+        assert_eq!(
+            e.into_database_error().unwrap().constraint().unwrap(),
+            "queue_pkey"
+        );
+    } else {
+        unreachable!()
+    }
 }
 
 #[tokio::test]

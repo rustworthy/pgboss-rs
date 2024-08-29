@@ -24,6 +24,7 @@ sqlx = { version = "=0.8.0", features = [
     "chrono",
     "uuid",
 ] }
+thiserror = "1.0.63"
 uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]

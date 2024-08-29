@@ -1,6 +1,7 @@
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use crate::Error;
 
-pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, sqlx::Error> {
+pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, Error> {
     let pool = match url {
         Some(url) => {
             PgPoolOptions::new()
