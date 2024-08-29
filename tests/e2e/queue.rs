@@ -156,6 +156,21 @@ async fn create_standard_queue() {
 }
 
 #[tokio::test]
+async fn create_queue_already_exists() {
+    let local = "create_queue_already_exists";
+    utils::drop_schema(local).await.unwrap();
+
+    let client = Client::builder().schema(local).connect().await.unwrap();
+    client.create_standard_queue("job_type").await.unwrap();
+
+    let err = client.create_standard_queue("job_type").await.unwrap_err();
+    assert_eq!(
+        err.into_database_error().unwrap().constraint().unwrap(),
+        "queue_pkey"
+    );
+}
+
+#[tokio::test]
 async fn create_non_standard_queue() {
     let local = "create_non_standard_queue";
     utils::drop_schema(local).await.unwrap();
@@ -204,16 +219,6 @@ async fn delete_queue() {
     let client = Client::builder().schema(local).connect().await.unwrap();
 
     client.create_standard_queue("job_type_1").await.unwrap();
-
-    // let's try to create a duplicate
-    let err = client
-        .create_standard_queue("job_type_1")
-        .await
-        .unwrap_err();
-    assert_eq!(
-        err.into_database_error().unwrap().constraint().unwrap(),
-        "queue_pkey"
-    );
 
     client.create_standard_queue("job_type_2").await.unwrap();
 

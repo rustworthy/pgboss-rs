@@ -30,6 +30,10 @@ impl Client {
             if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION as i32 {
                 panic!("Cannot migrate from the currently installed PgBoss application.")
             }
+            // We are still (re)installing functions, because:
+            // - we are using `create_job` function (not used in Node.js PgBoss implementation)
+            // - in the `crate_queue` function, we are using `jsonb` as `options` type (`json` in Node.js PgBoss)
+            self.install_functions().await?;
             return Ok(());
         }
         self.install_app().await?;
@@ -38,6 +42,12 @@ impl Client {
 
     async fn install_app(&mut self) -> Result<(), sqlx::Error> {
         let ddl = sql::install_app(&self.opts.schema);
+        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn install_functions(&self) -> Result<(), sqlx::Error> {
+        let ddl = sql::install_functions(&self.opts.schema);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
     }

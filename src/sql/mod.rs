@@ -52,3 +52,14 @@ pub(crate) fn install_app(schema: &str) -> String {
         ],
     )
 }
+
+pub(crate) fn install_functions(schema: &str) -> String {
+    locked(
+        schema,
+        [
+            proc::create_create_queue_function(schema),
+            proc::create_delete_queue_function(schema),
+            proc::create_create_job_function(schema),
+        ],
+    )
+}
