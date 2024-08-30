@@ -23,9 +23,11 @@ impl Client {
 
     async fn init(&mut self) -> Result<(), sqlx::Error> {
         if let Some(app) = self.maybe_existing_app().await? {
-            println!(
+            log::info!(
                 "App already exists: version={}, maintained_on={:?}, cron_on={:?}",
-                app.version, app.maintained_on, app.cron_on
+                app.version,
+                app.maintained_on,
+                app.cron_on
             );
             if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION as i32 {
                 panic!("Cannot migrate from the currently installed PgBoss application.")

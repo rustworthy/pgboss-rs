@@ -94,7 +94,8 @@ pub(super) fn create_job_table(schema: &str) -> String {
             keep_until timestamptz not null default now() + interval '14 days',
             output jsonb,
             dead_letter text,
-            policy text      
+            policy text,
+            CONSTRAINT job_pkey PRIMARY KEY (name, id)  
         ) PARTITION BY LIST (name);
         ",
         JobState::Created

@@ -1,5 +1,5 @@
-use sqlx::{postgres::PgPoolOptions, PgPool};
 use crate::Error;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, Error> {
     let pool = match url {

@@ -106,7 +106,7 @@ impl Client {
     }
 
     /// Enqueue a job.
-    pub async fn send_job<J>(&self, job: J) -> Result<Option<Uuid>, Error>
+    pub async fn send_job<J>(&self, _job: J) -> Result<Option<Uuid>, Error>
     where
         J: Into<Job>,
     {

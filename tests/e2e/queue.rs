@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::utils::{self, POSRGRES_URL};
 use chrono::Utc;
-use pgboss::{Client, Error, QueueOptions, QueuePolicy};
+use pgboss::{Client, QueueOptions, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
@@ -65,8 +65,9 @@ async fn instantiated_idempotently() {
 }
 
 #[tokio::test]
-async fn v21_app_already_exists() {
-    let local = "v21_app_already_exists";
+async fn app_latest_version_already_exists() {
+    let local = "app_latest_version_already_exists";
+    utils::drop_schema(local).await.unwrap();
 
     let create_schema_stmt = format!("CREATE SCHEMA {local};");
     let create_version_table_stmt = format!(
@@ -80,7 +81,7 @@ async fn v21_app_already_exists() {
     );
     let insert_app_stmt = format!(
         "INSERT INTO {local}.version VALUES ('{}', '{}','{}')",
-        21,
+        23,
         Utc::now(),
         Utc::now()
     );
@@ -94,7 +95,6 @@ async fn v21_app_already_exists() {
     .unwrap();
 
     let _c = Client::builder().schema(local).connect().await.unwrap();
-    utils::drop_schema(local).await.unwrap();
 }
 
 #[tokio::test]
@@ -162,15 +162,7 @@ async fn create_queue_already_exists() {
 
     let client = Client::builder().schema(local).connect().await.unwrap();
     client.create_standard_queue("job_type").await.unwrap();
-
-    if let Error::Sqlx(e) = client.create_standard_queue("job_type").await.unwrap_err() {
-        assert_eq!(
-            e.into_database_error().unwrap().constraint().unwrap(),
-            "queue_pkey"
-        );
-    } else {
-        unreachable!()
-    }
+    client.create_standard_queue("job_type").await.unwrap();
 }
 
 #[tokio::test]

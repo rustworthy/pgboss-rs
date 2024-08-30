@@ -9,6 +9,7 @@ pub(super) fn create_create_queue_function(schema: &str) -> String {
         $$
         DECLARE
             table_name varchar := 'j' || encode(sha224(queue_name::bytea), 'hex');
+            queue_created_on timestamptz;
         BEGIN
             INSERT INTO {schema}.queue (
                 name,
@@ -31,7 +32,11 @@ pub(super) fn create_create_queue_function(schema: &str) -> String {
                 (options->>'retentionMinutes')::int,
                 options->>'deadLetter',
                 table_name
-            );
+            ) ON CONFLICT DO NOTHING RETURNING created_on INTO queue_created_on;
+            
+            IF queue_created_on IS NULL THEN
+                RETURN;
+            END IF;
         
             EXECUTE format('CREATE TABLE {schema}.%I (LIKE {schema}.job INCLUDING DEFAULTS)', table_name);
             EXECUTE format('ALTER TABLE {schema}.%I ADD PRIMARY KEY (name, id)', table_name);
