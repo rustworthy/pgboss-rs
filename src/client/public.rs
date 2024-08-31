@@ -109,15 +109,15 @@ impl Client {
     /// Enqueue a job.
     pub async fn send_job<J>(&self, job: J) -> Result<Uuid, Error>
     where
-        J: Into<Job>,
+        J: Borrow<Job>,
     {
         let stmt = sql::proc::create_job(&self.opts.schema);
-        let job = job.into();
+        let job = job.borrow();
         let id: Option<Uuid> = sqlx::query_scalar(&stmt)
             .bind(Option::<Uuid>::None)
-            .bind(job.name)
+            .bind(&job.name)
             .bind(Json(serde_json::json!({})))
-            .bind(Json(job.opts))
+            .bind(Json(&job.opts))
             .fetch_one(&self.pool)
             .await?;
         id.ok_or(Error::Application {
@@ -129,13 +129,13 @@ impl Client {
     pub async fn send<Q, D>(&self, queue_name: Q, data: D) -> Result<Uuid, Error>
     where
         Q: AsRef<str>,
-        D: Into<serde_json::Value>,
+        D: Borrow<serde_json::Value>,
     {
         let stmt = sql::proc::create_job(&self.opts.schema);
         let id: Option<Uuid> = sqlx::query_scalar(&stmt)
             .bind(Option::<Uuid>::None)
             .bind(queue_name.as_ref())
-            .bind(Json(data.into()))
+            .bind(Json(data.borrow()))
             .bind(Json(JobOptions {}))
             .fetch_one(&self.pool)
             .await?;

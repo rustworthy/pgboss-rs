@@ -14,7 +14,7 @@ async fn send_job() {
         data: serde_json::Value::Null,
         opts: JobOptions {},
     };
-    let _id = c.send_job(job).await.expect("no error");
+    let _id = c.send_job(&job).await.expect("no error");
 }
 
 #[tokio::test]
@@ -30,7 +30,7 @@ async fn send_job_queue_does_not_exist() {
         opts: JobOptions {},
     };
 
-    if let Error::Application { msg } = c.send_job(job).await.unwrap_err() {
+    if let Error::Application { msg } = c.send_job(&job).await.unwrap_err() {
         assert!(msg.contains("queue does not exist"))
     } else {
         unreachable!()
@@ -44,10 +44,8 @@ async fn send() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
-    let _id = c
-        .send("jobtype", serde_json::json!({"key": "value"}))
-        .await
-        .expect("no error");
+    let data = serde_json::json!({"key": "value"});
+    let _id = c.send("jobtype", &data).await.expect("no error");
 }
 
 #[tokio::test]
