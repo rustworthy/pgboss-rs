@@ -12,7 +12,7 @@ async fn send_job() {
     let job = Job {
         name: "jobtype".into(),
         data: serde_json::Value::Null,
-        opts: JobOptions {},
+        opts: JobOptions::default(),
     };
     let _id = c.send_job(&job).await.expect("no error");
 }
@@ -27,7 +27,7 @@ async fn send_job_queue_does_not_exist() {
     let job = Job {
         name: "jobtype".into(),
         data: serde_json::Value::Null,
-        opts: JobOptions {},
+        opts: JobOptions::default(),
     };
 
     if let Error::Application { msg } = c.send_job(&job).await.unwrap_err() {

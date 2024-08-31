@@ -136,7 +136,7 @@ impl Client {
             .bind(Option::<Uuid>::None)
             .bind(queue_name.as_ref())
             .bind(Json(data.borrow()))
-            .bind(Json(JobOptions {}))
+            .bind(Json(JobOptions::default()))
             .fetch_one(&self.pool)
             .await?;
         id.ok_or(Error::Application {

@@ -25,8 +25,18 @@ impl std::fmt::Display for JobState {
 }
 
 /// Custom job options.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JobOptions {}
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JobOptions {
+    /// Job's priority.
+    ///
+    /// Higher numbers will have higher priority
+    /// when fetching from the queue.
+    pub priority: usize,
+
+    /// Name of the dead letter queue for this job.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dead_letter: Option<String>,
+}
 
 /// A job to be sent to the server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
