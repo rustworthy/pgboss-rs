@@ -49,7 +49,7 @@ test/doc:
 .PHONY: test/e2e
 test/e2e:
 	POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE} \
-	cargo test --locked --all-features --all-targets --test e2e -- --nocapture --include-ignored
+	cargo test --locked --all-features --all-targets --test e2e -- --nocapture --include-ignored $(pattern)
 
 .PHONY: test/cov
 test/cov:

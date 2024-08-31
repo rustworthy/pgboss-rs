@@ -4,6 +4,7 @@ use crate::job::Job;
 use crate::queue::QueueOptions;
 use crate::sql;
 use crate::utils;
+use crate::JobOptions;
 use crate::QueueInfo;
 use sqlx::postgres::PgPool;
 use sqlx::types::Json;
@@ -106,24 +107,26 @@ impl Client {
     }
 
     /// Enqueue a job.
-    pub async fn send_job<J>(&self, _job: J) -> Result<Option<Uuid>, Error>
+    pub async fn send_job<J>(&self, job: J) -> Result<Uuid, Error>
     where
         J: Into<Job>,
     {
         let stmt = sql::proc::create_job(&self.opts.schema);
+        let job = job.into();
         let id: Option<Uuid> = sqlx::query_scalar(&stmt)
             .bind(Option::<Uuid>::None)
-            .bind("send_job")
+            .bind(job.name)
             .bind(Json(serde_json::json!({})))
-            .bind(Json(serde_json::json!({})))
-            .fetch_optional(&self.pool)
+            .bind(Json(job.opts))
+            .fetch_one(&self.pool)
             .await?;
-
-        Ok(id)
+        id.ok_or(Error::Application {
+            msg: "queue does not exist",
+        })
     }
 
     /// Create and enqueue a job.
-    pub async fn send<Q, D>(&self, name: Q, data: D) -> Result<Option<Uuid>, Error>
+    pub async fn send<Q, D>(&self, queue_name: Q, data: D) -> Result<Uuid, Error>
     where
         Q: AsRef<str>,
         D: Into<serde_json::Value>,
@@ -131,12 +134,13 @@ impl Client {
         let stmt = sql::proc::create_job(&self.opts.schema);
         let id: Option<Uuid> = sqlx::query_scalar(&stmt)
             .bind(Option::<Uuid>::None)
-            .bind(name.as_ref())
+            .bind(queue_name.as_ref())
             .bind(Json(data.into()))
-            .bind(Json(serde_json::json!({})))
-            .fetch_optional(&self.pool)
+            .bind(Json(JobOptions {}))
+            .fetch_one(&self.pool)
             .await?;
-
-        Ok(id)
+        id.ok_or(Error::Application {
+            msg: "queue does not exist",
+        })
     }
 }
