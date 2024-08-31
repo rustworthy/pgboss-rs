@@ -140,13 +140,13 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
                 WHEN right(keep_until, 1) = 'Z' THEN CAST(keep_until as timestamptz)
                 ELSE start_after + CAST(COALESCE(keep_until, (q.retention_minutes * 60)::text, keep_until_default, '14 days') as interval)
             END as keep_until,
-            COALESCE(j.retry_limit, q.retry_limit, retry_limit_default, 2) as retry_limit,
+            COALESCE(j.retry_limit, q.retry_limit, 2) as retry_limit,
             CASE
-                WHEN COALESCE(j.retry_backoff, q.retry_backoff, retry_backoff_default, false)
-                THEN GREATEST(COALESCE(j.retry_delay, q.retry_delay, retry_delay_default), 1)
-                ELSE COALESCE(j.retry_delay, q.retry_delay, retry_delay_default, 0)
+                WHEN COALESCE(j.retry_backoff, q.retry_backoff, false)
+                THEN GREATEST(COALESCE(j.retry_delay, q.retry_delay), 1)
+                ELSE COALESCE(j.retry_delay, q.retry_delay, 0)
             END as retry_delay,
-            COALESCE(j.retry_backoff, q.retry_backoff, retry_backoff_default, false) as retry_backoff,
+            COALESCE(j.retry_backoff, q.retry_backoff, false) as retry_backoff,
             q.policy
         FROM (
             SELECT 
@@ -169,11 +169,8 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
                 options->>'keep_until' as keep_until,
                 options->>'keep_until_default' as keep_until_default,
                 (options->>'retry_limit')::integer as retry_limit,
-                (options->>'retry_limit_default')::integer as retry_limit_default,
                 (options->>'retry_delay')::integer as retry_delay,
-                (options->>'retry_delay_default')::integer as retry_delay_default,
-                (options->>'retry_backoff')::boolean as retry_backoff,
-                (options->>'retry_backoff_default')::boolean as retry_backoff_default
+                (options->>'retry_backoff')::boolean as retry_backoff
             ) j JOIN {schema}.queue q ON j.name = q.name
         ON CONFLICT DO NOTHING
         RETURNING id INTO inserted_id;

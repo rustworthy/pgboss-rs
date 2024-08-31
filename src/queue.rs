@@ -1,5 +1,6 @@
+use super::utils;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 use std::time::Duration;
 
@@ -58,32 +59,6 @@ impl std::fmt::Display for QueuePolicy {
     }
 }
 
-pub(crate) fn serialize_duration_as_secs<S>(
-    value: &Option<Duration>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match value {
-        None => serializer.serialize_none(),
-        Some(dur) => serializer.serialize_u64(dur.as_secs()),
-    }
-}
-
-pub(crate) fn serialize_duration_as_mins<S>(
-    value: &Option<Duration>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match value {
-        None => serializer.serialize_none(),
-        Some(dur) => serializer.serialize_u64(dur.as_secs() / 60),
-    }
-}
-
 /// Queue configuration.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,7 +73,7 @@ pub struct QueueOptions<'a> {
     pub retry_limit: Option<usize>,
 
     /// Time to wait before a retry attempt.
-    #[serde(serialize_with = "serialize_duration_as_secs")]
+    #[serde(serialize_with = "utils::serialize_duration_as_secs")]
     pub retry_delay: Option<Duration>,
 
     /// Whether to use a backoff between retry attempts.
@@ -108,7 +83,7 @@ pub struct QueueOptions<'a> {
     ///
     /// Should be between 1 second and 24 hours, or simply unset (default).
     #[serde(
-        serialize_with = "serialize_duration_as_secs",
+        serialize_with = "utils::serialize_duration_as_secs",
         rename = "expireInSeconds"
     )]
     pub expire_in: Option<Duration>,
@@ -117,7 +92,7 @@ pub struct QueueOptions<'a> {
     ///
     /// Should be greater than or eqaul to 1 second, or simply unset (default).
     #[serde(
-        serialize_with = "serialize_duration_as_mins",
+        serialize_with = "utils::serialize_duration_as_mins",
         rename = "retentionMinutes"
     )]
     pub retain_for: Option<Duration>,

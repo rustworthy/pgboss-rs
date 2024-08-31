@@ -1,4 +1,6 @@
+use super::utils;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum JobState {
@@ -36,6 +38,16 @@ pub struct JobOptions {
     /// Name of the dead letter queue for this job.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dead_letter: Option<String>,
+
+    /// Number of retry attempts.
+    pub retry_limit: Option<usize>,
+
+    /// Time to wait before a retry attempt.
+    #[serde(serialize_with = "utils::serialize_duration_as_secs")]
+    pub retry_delay: Option<Duration>,
+
+    /// Whether to use a backoff between retry attempts.
+    pub retry_backoff: Option<bool>,
 }
 
 /// A job to be sent to the server.
