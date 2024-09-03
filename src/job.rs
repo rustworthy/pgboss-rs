@@ -1,6 +1,7 @@
 use super::utils;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum JobState {
@@ -77,8 +78,12 @@ pub struct JobOptions {
 }
 
 /// A job to be sent to the server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Job {
+    /// ID to assign to this job.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+
     /// Job's name.
     pub name: String,
 

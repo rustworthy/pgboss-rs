@@ -126,7 +126,7 @@ impl Client {
     }
 
     /// Create and enqueue a job.
-    pub async fn send<Q, D>(&self, queue_name: Q, data: D) -> Result<Uuid, Error>
+    pub async fn send_data<Q, D>(&self, queue_name: Q, data: D) -> Result<Uuid, Error>
     where
         Q: AsRef<str>,
         D: Borrow<serde_json::Value>,

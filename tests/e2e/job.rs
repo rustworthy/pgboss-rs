@@ -1,5 +1,5 @@
 use crate::utils;
-use pgboss::{Client, Error, Job, JobOptions};
+use pgboss::{Client, Error, Job};
 
 #[tokio::test]
 async fn send_job() {
@@ -11,8 +11,7 @@ async fn send_job() {
 
     let job = Job {
         name: "jobtype".into(),
-        data: serde_json::Value::Null,
-        opts: JobOptions::default(),
+        ..Default::default()
     };
     let _id = c.send_job(&job).await.expect("no error");
 }
@@ -26,8 +25,7 @@ async fn send_job_queue_does_not_exist() {
 
     let job = Job {
         name: "jobtype".into(),
-        data: serde_json::Value::Null,
-        opts: JobOptions::default(),
+        ..Default::default()
     };
 
     if let Error::Application { msg } = c.send_job(&job).await.unwrap_err() {
@@ -38,25 +36,25 @@ async fn send_job_queue_does_not_exist() {
 }
 
 #[tokio::test]
-async fn send() {
-    let local = "send";
+async fn send_data() {
+    let local = "send_data";
     utils::drop_schema(&local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
     let data = serde_json::json!({"key": "value"});
-    let _id = c.send("jobtype", &data).await.expect("no error");
+    let _id = c.send_data("jobtype", &data).await.expect("no error");
 }
 
 #[tokio::test]
-async fn send_queue_does_not_exist() {
-    let local = "send_queue_does_not_exist";
+async fn send_data_queue_does_not_exist() {
+    let local = "send_data_queue_does_not_exist";
     utils::drop_schema(&local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
 
     if let Error::Application { msg } = c
-        .send("jobtype", serde_json::json!({"key": "value"}))
+        .send_data("jobtype", serde_json::json!({"key": "value"}))
         .await
         .unwrap_err()
     {
