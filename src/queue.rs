@@ -69,14 +69,26 @@ pub struct QueueOptions<'a> {
     /// Policy to apply to this queue.
     pub policy: QueuePolicy,
 
+    /// Name of the dead letter queue.
+    ///
+    /// Note that the dead letter queue itself should be created
+    /// ahead of time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dead_letter: Option<&'a str>,
+
     /// Number of retry attempts.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_limit: Option<usize>,
 
     /// Time to wait before a retry attempt.
-    #[serde(serialize_with = "utils::serialize_duration_as_secs")]
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub retry_delay: Option<Duration>,
 
     /// Whether to use a backoff between retry attempts.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_backoff: Option<bool>,
 
     /// Time to wait before expiring this job.
@@ -84,7 +96,8 @@ pub struct QueueOptions<'a> {
     /// Should be between 1 second and 24 hours, or simply unset (default).
     #[serde(
         serialize_with = "utils::serialize_duration_as_secs",
-        rename = "expireInSeconds"
+        rename = "expireInSeconds",
+        skip_serializing_if = "Option::is_none"
     )]
     pub expire_in: Option<Duration>,
 
@@ -93,15 +106,10 @@ pub struct QueueOptions<'a> {
     /// Should be greater than or eqaul to 1 second, or simply unset (default).
     #[serde(
         serialize_with = "utils::serialize_duration_as_mins",
-        rename = "retentionMinutes"
+        rename = "retentionMinutes",
+        skip_serializing_if = "Option::is_none"
     )]
     pub retain_for: Option<Duration>,
-
-    /// Name of the dead letter queue.
-    ///
-    /// Note that the dead letter queue itself should be created
-    /// ahead of time.
-    pub dead_letter: Option<&'a str>,
 }
 
 /// Job queue info.

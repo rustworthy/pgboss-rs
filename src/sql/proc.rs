@@ -133,12 +133,11 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
             CASE
                 WHEN expire_in IS NOT NULL THEN CAST(expire_in as interval)
                 WHEN q.expire_seconds IS NOT NULL THEN q.expire_seconds * interval '1s'
-                WHEN expire_in_default IS NOT NULL THEN CAST(expire_in_default as interval)
                 ELSE interval '15 minutes'
             END as expire_in,
             CASE
                 WHEN right(keep_until, 1) = 'Z' THEN CAST(keep_until as timestamptz)
-                ELSE start_after + CAST(COALESCE(keep_until, (q.retention_minutes * 60)::text, keep_until_default, '14 days') as interval)
+                ELSE start_after + CAST(COALESCE(keep_until, (q.retention_minutes * 60)::text, '14 days') as interval)
             END as keep_until,
             COALESCE(j.retry_limit, q.retry_limit, 2) as retry_limit,
             CASE
@@ -165,9 +164,7 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
                 END as singleton_on,
                 options->>'dead_letter' as dead_letter,
                 options->>'expire_in' as expire_in,
-                options->>'expire_in_default' as expire_in_default,
                 options->>'keep_until' as keep_until,
-                options->>'keep_until_default' as keep_until_default,
                 (options->>'retry_limit')::integer as retry_limit,
                 (options->>'retry_delay')::integer as retry_delay,
                 (options->>'retry_backoff')::boolean as retry_backoff
