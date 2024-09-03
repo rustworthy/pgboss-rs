@@ -9,8 +9,15 @@ pub enum Error {
     Sqlx(#[from] sqlx::Error),
 
     /// Application error.
-    #[error("application error: {msg}")]
-    Application {
+    #[error("cannot process: {msg}")]
+    Unprocessable {
+        /// Details on what exactly went wrong.
+        msg: &'static str,
+    },
+
+    /// Constraint violation in the system.
+    #[error("conflict in the system: {msg}")]
+    Conflict {
         /// Details on what exactly went wrong.
         msg: &'static str,
     },

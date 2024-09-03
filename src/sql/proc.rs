@@ -169,7 +169,6 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
                 (options->>'retry_delay')::integer as retry_delay,
                 (options->>'retry_backoff')::boolean as retry_backoff
             ) j JOIN {schema}.queue q ON j.name = q.name
-        ON CONFLICT DO NOTHING
         RETURNING id INTO inserted_id;
         END;
         $$

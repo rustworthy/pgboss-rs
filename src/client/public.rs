@@ -114,13 +114,25 @@ impl Client {
         let stmt = sql::proc::create_job(&self.opts.schema);
         let job = job.borrow();
         let id: Option<Uuid> = sqlx::query_scalar(&stmt)
-            .bind(Option::<Uuid>::None)
+            .bind(job.id)
             .bind(&job.name)
             .bind(Json(serde_json::json!({})))
             .bind(Json(&job.opts))
             .fetch_one(&self.pool)
-            .await?;
-        id.ok_or(Error::Application {
+            .await
+            .map_err(|e| {
+                if let Some(db_error) = e.as_database_error() {
+                    if let Some(constraint) = db_error.constraint() {
+                        if constraint.starts_with("j") && constraint.ends_with("_pkey") {
+                            return Error::Conflict {
+                                msg: "job with this id already exists",
+                            };
+                        }
+                    }
+                }
+                Error::Sqlx(e)
+            })?;
+        id.ok_or(Error::Unprocessable {
             msg: "queue does not exist",
         })
     }
@@ -139,7 +151,7 @@ impl Client {
             .bind(Json(JobOptions::default()))
             .fetch_one(&self.pool)
             .await?;
-        id.ok_or(Error::Application {
+        id.ok_or(Error::Unprocessable {
             msg: "queue does not exist",
         })
     }
