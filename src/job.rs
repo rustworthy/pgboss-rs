@@ -73,8 +73,14 @@ pub struct JobOptions {
         skip_serializing_if = "Option::is_none"
     )]
     pub retain_for: Option<Duration>,
-    // startAfter // Datetime UTC
-    // singletonSeconds
+
+    /// For how long this job should _not_ be visible to consumers.
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        rename = "start_after",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub delay_for: Option<Duration>,
 }
 
 /// A job to be sent to the server.
