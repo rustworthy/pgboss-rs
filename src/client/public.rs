@@ -128,6 +128,11 @@ impl Client {
                                 msg: "job with this id already exists",
                             };
                         }
+                        if constraint == "dlq_fkey" {
+                            return Error::Unprocessable {
+                                msg: "dead letter queue does not exist",
+                            };
+                        }
                     }
                 }
                 Error::Sqlx(e)
