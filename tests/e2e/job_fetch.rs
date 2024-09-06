@@ -25,7 +25,6 @@ async fn fetch_one_job() {
         .retry_backoff(true)
         .expire_in(Duration::from_secs(30))
         .retain_for(Duration::from_secs(60 * 60 * 2))
-        .delay_for(Duration::from_secs(5))
         .build();
 
     let job2 = Job::builder()
@@ -38,7 +37,6 @@ async fn fetch_one_job() {
         .retry_backoff(true)
         .expire_in(Duration::from_secs(30))
         .retain_for(Duration::from_secs(60 * 60 * 2))
-        .delay_for(Duration::from_secs(5))
         .build();
 
     c.send_job(&job1).await.expect("uuid");

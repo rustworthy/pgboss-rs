@@ -57,3 +57,25 @@ pub(crate) fn get_queues(schema: &str) -> String {
         "
     )
 }
+
+pub(crate) fn fetch_job(schema: &str) -> String {
+    format!(
+        r#"
+        WITH next as (
+            SELECT id FROM {schema}.job
+            WHERE name = $1 AND state < 'active' AND start_after < now()
+            ORDER BY priority DESC, created_on, id
+            LIMIT $2
+            FOR UPDATE
+            SKIP LOCKED
+        )
+        UPDATE {schema}.job j SET
+            state = 'active',
+            started_on = now(),
+            retry_count = CASE WHEN started_on IS NULL THEN 0 ELSE retry_count + 1 END
+        FROM next
+        WHERE name = $1 AND j.id = next.id
+        RETURNING j.id, name, data, EXTRACT(epoch FROM expire_in);
+        "#,
+    )
+}

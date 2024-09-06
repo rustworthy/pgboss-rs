@@ -1,6 +1,5 @@
 use super::Client;
 use crate::queue::QueueOptions;
-use crate::sql;
 use crate::Error;
 use crate::QueueInfo;
 use sqlx::types::Json;
@@ -12,9 +11,8 @@ impl Client {
     where
         Q: Borrow<QueueOptions<'a>>,
     {
-        let stmt = sql::proc::create_queue(&self.opts.schema);
         let q_opts = opts.borrow();
-        Ok(sqlx::query(&stmt)
+        Ok(sqlx::query(&self.stmt.create_queue)
             .bind(q_opts.name)
             .bind(Json(q_opts))
             .execute(&self.pool)
@@ -39,8 +37,7 @@ impl Client {
     where
         Q: AsRef<str>,
     {
-        let stmt = sql::dml::get_queue(&self.opts.schema);
-        let queue: Option<QueueInfo> = sqlx::query_as(&stmt)
+        let queue: Option<QueueInfo> = sqlx::query_as(&self.stmt.get_queue)
             .bind(queue_name.as_ref())
             .fetch_optional(&self.pool)
             .await?;
@@ -49,8 +46,9 @@ impl Client {
 
     /// Return info on all the queues in the system.
     pub async fn get_queues(&self) -> Result<Vec<QueueInfo>, Error> {
-        let stmt = sql::dml::get_queues(&self.opts.schema);
-        let queues: Vec<QueueInfo> = sqlx::query_as(&stmt).fetch_all(&self.pool).await?;
+        let queues: Vec<QueueInfo> = sqlx::query_as(&self.stmt.get_queues)
+            .fetch_all(&self.pool)
+            .await?;
         Ok(queues)
     }
 
@@ -62,8 +60,7 @@ impl Client {
     where
         Q: AsRef<str>,
     {
-        let stmt = sql::proc::delete_queue(&self.opts.schema);
-        Ok(sqlx::query(&stmt)
+        Ok(sqlx::query(&self.stmt.delete_queue)
             .bind(queue_name.as_ref())
             .execute(&self.pool)
             .await

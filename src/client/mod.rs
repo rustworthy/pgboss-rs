@@ -7,16 +7,41 @@ mod public;
 
 pub use builder::ClientBuilder;
 
+#[derive(Debug, Clone)]
+struct Statements {
+    fetch_one: String,
+    create_job: String,
+    create_queue: String,
+    get_queue: String,
+    get_queues: String,
+    delete_queue: String,
+}
+
+impl Statements {
+    fn for_schema(name: &str) -> Statements {
+        Statements {
+            fetch_one: sql::dml::fetch_job(name),
+            create_job: sql::proc::create_job(name),
+            create_queue: sql::proc::create_queue(name),
+            get_queue: sql::dml::get_queue(name),
+            get_queues: sql::dml::get_queues(name),
+            delete_queue: sql::proc::delete_queue(name),
+        }
+    }
+}
+
 /// PgBoss client.
 #[derive(Debug, Clone)]
 pub struct Client {
     pool: PgPool,
     opts: opts::ClientOptions,
+    stmt: Statements,
 }
 
 impl Client {
     async fn new(pool: PgPool, opts: opts::ClientOptions) -> Result<Self, sqlx::Error> {
-        let mut c = Client { pool, opts };
+        let stmt = Statements::for_schema(&opts.schema);
+        let mut c = Client { pool, opts, stmt };
         c.init().await?;
         Ok(c)
     }

@@ -1,6 +1,5 @@
 use super::Client;
 use crate::job::Job;
-use crate::sql;
 use crate::Error;
 use crate::JobOptions;
 use sqlx::types::Json;
@@ -13,9 +12,8 @@ impl Client {
     where
         J: Borrow<Job>,
     {
-        let stmt = sql::proc::create_job(&self.opts.schema);
         let job = job.borrow();
-        let id: Option<Uuid> = sqlx::query_scalar(&stmt)
+        let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
             .bind(job.id)
             .bind(&job.name)
             .bind(Json(serde_json::json!({})))
@@ -50,8 +48,7 @@ impl Client {
         Q: AsRef<str>,
         D: Borrow<serde_json::Value>,
     {
-        let stmt = sql::proc::create_job(&self.opts.schema);
-        let id: Option<Uuid> = sqlx::query_scalar(&stmt)
+        let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
             .bind(Option::<Uuid>::None)
             .bind(queue_name.as_ref())
             .bind(Json(data.borrow()))
@@ -68,6 +65,11 @@ impl Client {
     where
         Q: AsRef<str>,
     {
+        let _d = sqlx::query_as(&self.stmt.fetch_one)
+            .bind(queue_name.as_ref())
+            .bind(1)
+            .fetch_one(&self.pool)
+            .await?;
         unimplemented!("{:?}", queue_name.as_ref())
     }
 }
