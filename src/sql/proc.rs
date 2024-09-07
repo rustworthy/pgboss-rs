@@ -176,10 +176,11 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
         "#
     )
 }
-///                  id                  |      name      | priority | data |  state  | retry_limit | retry_count | retry_delay | retry_backoff |          start_after          | started_on | singleton_key | singleton_on | expire_in |          created_on           | completed_on |          keep_until           | output | dead_letter |  policy  
-/// --------------------------------------+----------------+----------+------+---------+-------------+-------------+-------------+---------------+-------------------------------+------------+---------------+--------------+-----------+-------------------------------+--------------+-------------------------------+--------+-------------+----------
-/// cb1144a7-5fd3-49df-a691-01ba1e1f06a7 | send_job_queue |        0 | {}   | created |           2 |           0 |           0 | f             | 2024-08-27 19:39:24.933367+00 |            |               |              | 00:15:00  | 2024-08-27 19:39:24.933367+00 |              | 2024-09-10 19:39:24.933367+00 |        |             | standard
-/// (1 row)
+
+//                  id                  |      name      | priority | data |  state  | retry_limit | retry_count | retry_delay | retry_backoff |          start_after          | started_on | singleton_key | singleton_on | expire_in |          created_on           | completed_on |          keep_until           | output | dead_letter |  policy
+// --------------------------------------+----------------+----------+------+---------+-------------+-------------+-------------+---------------+-------------------------------+------------+---------------+--------------+-----------+-------------------------------+--------------+-------------------------------+--------+-------------+----------
+// cb1144a7-5fd3-49df-a691-01ba1e1f06a7 | send_job_queue |        0 | {}   | created |           2 |           0 |           0 | f             | 2024-08-27 19:39:24.933367+00 |            |               |              | 00:15:00  | 2024-08-27 19:39:24.933367+00 |              | 2024-09-10 19:39:24.933367+00 |        |             | standard
+// (1 row)
 pub(crate) fn create_job(schema: &str) -> String {
     format!("SELECT {schema}.create_job($1, $2, $3, $4);")
 }
