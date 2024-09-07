@@ -84,7 +84,7 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
     format!(
         r#"
         WITH results as (
-            DELETE FROM ${schema}.job
+            DELETE FROM {schema}.job
             WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[]))        
             RETURNING 1
         )

@@ -18,7 +18,7 @@ async fn fetch_one_job() {
 
     // prepare jobs
     let job1 = Job::builder()
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value1"}))
         .priority(10) // should be fetched THIRD
         .dead_letter("jobtype_dead_letter_queue")
@@ -30,7 +30,7 @@ async fn fetch_one_job() {
         .build();
 
     let job2 = Job::builder()
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value2"}))
         .priority(20) // should be fetched FIRST
         .dead_letter("jobtype_dead_letter_queue")
@@ -41,7 +41,7 @@ async fn fetch_one_job() {
         .build();
 
     let job3 = Job::builder()
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value3"}))
         .priority(15) // should be fetched SECOND
         .dead_letter("jobtype_dead_letter_queue")
@@ -63,7 +63,7 @@ async fn fetch_one_job() {
         .expect("no error")
         .expect("a job");
 
-    assert_eq!(job.name, "jobtype");
+    assert_eq!(job.queue_name, "jobtype");
     assert_eq!(job.data, json!({"key": "value2"}));
     assert_eq!(job.expire_in, Duration::from_secs(60 * 15)); // default
 
@@ -74,7 +74,7 @@ async fn fetch_one_job() {
         .expect("no error")
         .expect("a job");
 
-    assert_eq!(job.name, "jobtype");
+    assert_eq!(job.queue_name, "jobtype");
     assert_eq!(job.data, json!({"key": "value3"}));
     assert_eq!(job.expire_in, Duration::from_secs(60 * 15)); // default
 
@@ -85,7 +85,7 @@ async fn fetch_one_job() {
         .expect("no error")
         .expect("a job");
 
-    assert_eq!(job.name, "jobtype");
+    assert_eq!(job.queue_name, "jobtype");
     assert_eq!(job.data, json!({"key": "value1"}));
     assert_eq!(job.expire_in, Duration::from_secs(30)); // our override
 
@@ -105,7 +105,7 @@ async fn fetch_many_jobs() {
     let job1_id = Uuid::new_v4();
     let job1 = Job::builder()
         .id(job1_id)
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value1", "priority": 1}))
         .priority(1)
         .build();
@@ -113,14 +113,14 @@ async fn fetch_many_jobs() {
     let job2_id = Uuid::new_v4();
     let job2 = Job::builder()
         .id(job2_id)
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value2", "priority": 0}))
         .build();
 
     let job3_id = Uuid::new_v4();
     let job3 = Job::builder()
         .id(job3_id)
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value3", "priority": 10}))
         .priority(10)
         .build();
@@ -142,7 +142,7 @@ async fn fetch_many_jobs() {
         .expect("no error")
         .expect("a job");
 
-    assert_eq!(job.name, "jobtype");
+    assert_eq!(job.queue_name, "jobtype");
     assert_eq!(job.data, json!({"key": "value2", "priority": 0}));
 
     // queue has been drained!

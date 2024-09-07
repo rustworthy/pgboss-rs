@@ -10,6 +10,7 @@ pub use builder::ClientBuilder;
 #[derive(Debug, Clone)]
 struct Statements {
     fetch_jobs: String,
+    delete_jobs: String,
     create_job: String,
     create_queue: String,
     get_queue: String,
@@ -21,6 +22,7 @@ impl Statements {
     fn for_schema(name: &str) -> Statements {
         Statements {
             fetch_jobs: sql::dml::fetch_jobs(name),
+            delete_jobs: sql::dml::delete_jobs(name),
             create_job: sql::proc::create_job(name),
             create_queue: sql::proc::create_queue(name),
             get_queue: sql::dml::get_queue(name),

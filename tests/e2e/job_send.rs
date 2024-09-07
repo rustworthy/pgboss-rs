@@ -11,7 +11,7 @@ async fn send_job() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
-    let job = Job::builder().name("jobtype").build();
+    let job = Job::builder().queue_name("jobtype").build();
     let _id = c.send_job(&job).await.expect("no error");
 }
 
@@ -24,11 +24,11 @@ async fn send_job_with_id() {
     c.create_standard_queue("jobtype").await.unwrap();
 
     let id = uuid::Uuid::new_v4();
-    let job = Job::builder().name("jobtype").id(id).build();
+    let job = Job::builder().queue_name("jobtype").id(id).build();
     let inserted_id = c.send_job(&job).await.expect("no error");
     assert_eq!(inserted_id, id);
 
-    let job = Job::builder().name("jobtype").id(id).build();
+    let job = Job::builder().queue_name("jobtype").id(id).build();
     let err = c.send_job(&job).await.unwrap_err();
     if let Error::Conflict { msg } = err {
         assert_eq!(msg, "job with this id already exists");
@@ -50,7 +50,7 @@ async fn send_job_with_dead_letter() {
 
     let id = uuid::Uuid::new_v4();
     let job = Job::builder()
-        .name("jobtype")
+        .queue_name("jobtype")
         .id(id)
         .dead_letter("jobtype_dead_letter_queue")
         .build();
@@ -69,7 +69,7 @@ async fn send_job_with_dead_letter_does_not_exist() {
 
     let id = uuid::Uuid::new_v4();
     let job = Job::builder()
-        .name("jobtype")
+        .queue_name("jobtype")
         .id(id)
         .dead_letter("jobtype_dead_letter")
         .build();
@@ -87,7 +87,7 @@ async fn send_job_queue_does_not_exist() {
     utils::drop_schema(&local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
-    let job = Job::builder().name("jobtype").build();
+    let job = Job::builder().queue_name("jobtype").build();
     if let Error::Unprocessable { msg } = c.send_job(&job).await.unwrap_err() {
         assert!(msg.contains("queue does not exist"))
     } else {
@@ -139,7 +139,7 @@ async fn send_job_fully_customized() {
 
     let job = Job::builder()
         .id(id)
-        .name("jobtype")
+        .queue_name("jobtype")
         .data(json!({"key": "value"}))
         .priority(10)
         .dead_letter("jobtype_dead_letter_queue")

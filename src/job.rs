@@ -99,8 +99,8 @@ pub struct Job {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
 
-    /// Job's name.
-    pub name: String,
+    /// Name of the queue to put this job onto.
+    pub queue_name: String,
 
     /// Job's payload.
     pub data: serde_json::Value,
@@ -119,8 +119,8 @@ pub struct ActiveJob {
     /// ID of this job.
     pub id: Uuid,
 
-    /// Job's name.
-    pub name: String,
+    /// Name of the queue this job was fetched from.
+    pub queue_name: String,
 
     /// Job's payload.
     pub data: serde_json::Value,
@@ -135,7 +135,7 @@ pub struct ActiveJob {
 impl FromRow<'_, PgRow> for ActiveJob {
     fn from_row(row: &PgRow) -> sqlx::Result<Self> {
         let id: Uuid = row.try_get("id")?;
-        let name: String = row.try_get("name")?;
+        let queue_name: String = row.try_get("name")?;
         let data: serde_json::Value = row.try_get("data")?;
         let expire_in: Duration = row.try_get("expire_in").and_then(|v: f64| match v {
             v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
@@ -146,7 +146,7 @@ impl FromRow<'_, PgRow> for ActiveJob {
         })?;
         Ok(ActiveJob {
             id,
-            name,
+            queue_name,
             data,
             expire_in,
         })
@@ -163,16 +163,9 @@ impl Job {
 /// A builder for a job.
 #[derive(Debug, Clone, Default)]
 pub struct JobBuilder {
-    /// ID to assign to this job.
     pub(crate) id: Option<Uuid>,
-
-    /// Job's name.
-    pub(crate) name: String,
-
-    /// Job's payload.
+    pub(crate) queue_name: String,
     pub(crate) data: serde_json::Value,
-
-    /// Options specific to this job.
     pub(crate) opts: JobOptions,
 }
 
@@ -183,12 +176,12 @@ impl JobBuilder {
         self
     }
 
-    /// Job's name.
-    pub fn name<S>(mut self, value: S) -> Self
+    /// Name of the queue to put this job onto.
+    pub fn queue_name<S>(mut self, value: S) -> Self
     where
         S: Into<String>,
     {
-        self.name = value.into();
+        self.queue_name = value.into();
         self
     }
 
@@ -257,7 +250,7 @@ impl JobBuilder {
     pub fn build(self) -> Job {
         Job {
             id: self.id,
-            name: self.name,
+            queue_name: self.queue_name,
             data: self.data,
             opts: self.opts,
         }

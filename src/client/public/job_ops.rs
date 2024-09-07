@@ -15,7 +15,7 @@ impl Client {
         let job = job.borrow();
         let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
             .bind(job.id)
-            .bind(&job.name)
+            .bind(&job.queue_name)
             .bind(Json(&job.data))
             .bind(Json(&job.opts))
             .fetch_one(&self.pool)
@@ -88,5 +88,19 @@ impl Client {
             .fetch_all(&self.pool)
             .await?;
         Ok(maybe_job)
+    }
+
+    /// Delete a job from a queue.
+    pub async fn delete_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<(), Error>
+    where
+        Q: AsRef<str>,
+    {
+        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.delete_jobs)
+            .bind(queue_name.as_ref())
+            .bind([job_id])
+            .fetch_one(&self.pool)
+            .await?;
+        println!("{:?}", deleted_count);
+        Ok(())
     }
 }
