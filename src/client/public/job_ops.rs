@@ -91,15 +91,33 @@ impl Client {
     }
 
     /// Delete a job from a queue.
+    ///
+    /// In a happy path, returns `false`, if the specified queue or the job with this ID does not exist,
+    /// otherwise returns `true`.
+    ///
+    /// To delete numerous jobs from a queue, use [Client::delete_jobs].
     pub async fn delete_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<bool, Error>
     where
         Q: AsRef<str>,
     {
+        let deleted_count = self.delete_jobs(queue_name, [job_id]).await?;
+        Ok(deleted_count == 1)
+    }
+
+    /// Delete numerous jobs from a queue.
+    ///
+    /// In a happy path, returns the number of deleted records, where `0` means
+    /// the specified queue if the jobs with these ids do not exist.
+    pub async fn delete_jobs<Q, J>(&self, queue_name: Q, job_ids: J) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        J: IntoIterator<Item = Uuid>,
+    {
         let deleted_count: (i64,) = sqlx::query_as(&self.stmt.delete_jobs)
             .bind(queue_name.as_ref())
-            .bind([job_id])
+            .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
             .fetch_one(&self.pool)
             .await?;
-        Ok(deleted_count.0 == 1)
+        Ok(deleted_count.0 as usize)
     }
 }
