@@ -107,7 +107,8 @@ impl Client {
     /// Delete numerous jobs from a queue.
     ///
     /// In a happy path, returns the number of deleted records, where `0` means
-    /// the specified queue if the jobs with these ids do not exist.
+    /// either the specified queue does not exist, or there are no jobs with
+    /// these ids in the queue.
     pub async fn delete_jobs<Q, J>(&self, queue_name: Q, job_ids: J) -> Result<usize, Error>
     where
         Q: AsRef<str>,
@@ -116,6 +117,46 @@ impl Client {
         let deleted_count: (i64,) = sqlx::query_as(&self.stmt.delete_jobs)
             .bind(queue_name.as_ref())
             .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(deleted_count.0 as usize)
+    }
+
+    /// Mark a job as failed
+    pub async fn fail_job<Q, O>(
+        &self,
+        queue_name: Q,
+        job_id: Uuid,
+        details: O,
+    ) -> Result<bool, Error>
+    where
+        Q: AsRef<str>,
+        O: Into<serde_json::Value>,
+    {
+        let deleted_count = self.fail_jobs(queue_name, [job_id], details).await?;
+        Ok(deleted_count == 1)
+    }
+
+    /// Mark numerous jobs as failed.
+    ///
+    /// In a happy path, returns the number of jobs marked as `failed`,
+    /// where `0` means either the specified queue does not exist,
+    /// or there are no jobs with these ids in the queue.
+    pub async fn fail_jobs<Q, I, O>(
+        &self,
+        queue_name: Q,
+        job_ids: I,
+        details: O,
+    ) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+        O: Into<serde_json::Value>,
+    {
+        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.fail_jobs)
+            .bind(queue_name.as_ref())
+            .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
+            .bind(details.into())
             .fetch_one(&self.pool)
             .await?;
         Ok(deleted_count.0 as usize)

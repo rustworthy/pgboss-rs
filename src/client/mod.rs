@@ -11,6 +11,7 @@ pub use builder::ClientBuilder;
 struct Statements {
     fetch_jobs: String,
     delete_jobs: String,
+    fail_jobs: String,
     create_job: String,
     create_queue: String,
     get_queue: String,
@@ -24,6 +25,7 @@ impl Statements {
             fetch_jobs: sql::dml::fetch_jobs(name),
             delete_jobs: sql::dml::delete_jobs(name),
             create_job: sql::proc::create_job(name),
+            fail_jobs: sql::dml::fail_jobs(name),
             create_queue: sql::proc::create_queue(name),
             get_queue: sql::dml::get_queue(name),
             get_queues: sql::dml::get_queues(name),

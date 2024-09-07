@@ -4,6 +4,9 @@ use sqlx::{postgres::PgRow, prelude::FromRow, Row};
 use std::time::Duration;
 use uuid::Uuid;
 
+#[cfg(doc)]
+use crate::QueueOptions;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum JobState {
     Created,
@@ -43,6 +46,9 @@ pub struct JobOptions {
     pub dead_letter: Option<String>,
 
     /// Number of retry attempts.
+    ///
+    /// If omitted, a value will be taken from queue via [`QueueOptions::retry_limit`]
+    /// and - if not set there either - will default to `2` retry attempts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_limit: Option<usize>,
 
@@ -207,6 +213,7 @@ impl JobBuilder {
     }
 
     /// Number of retry attempts.
+
     pub fn retry_limit(mut self, value: usize) -> Self {
         self.opts.retry_limit = Some(value);
         self

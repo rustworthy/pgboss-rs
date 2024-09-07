@@ -82,7 +82,7 @@ pub(super) fn create_delete_queue_function(schema: &str) -> String {
         DECLARE
             table_name varchar;
         BEGIN
-            WITH deleted as (
+            WITH deleted AS (
                 DELETE FROM {schema}.queue WHERE name = queue_name RETURNING partition_name
             )
             SELECT partition_name FROM deleted INTO table_name;
