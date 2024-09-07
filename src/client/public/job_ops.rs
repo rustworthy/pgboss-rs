@@ -91,7 +91,7 @@ impl Client {
     }
 
     /// Delete a job from a queue.
-    pub async fn delete_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<(), Error>
+    pub async fn delete_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<bool, Error>
     where
         Q: AsRef<str>,
     {
@@ -100,7 +100,6 @@ impl Client {
             .bind([job_id])
             .fetch_one(&self.pool)
             .await?;
-        println!("{:?}", deleted_count);
-        Ok(())
+        Ok(deleted_count.0 == 1)
     }
 }
