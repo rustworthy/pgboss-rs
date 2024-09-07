@@ -9,7 +9,7 @@ pub use builder::ClientBuilder;
 
 #[derive(Debug, Clone)]
 struct Statements {
-    fetch_one: String,
+    fetch_jobs: String,
     create_job: String,
     create_queue: String,
     get_queue: String,
@@ -20,7 +20,7 @@ struct Statements {
 impl Statements {
     fn for_schema(name: &str) -> Statements {
         Statements {
-            fetch_one: sql::dml::fetch_job(name),
+            fetch_jobs: sql::dml::fetch_jobs(name),
             create_job: sql::proc::create_job(name),
             create_queue: sql::proc::create_queue(name),
             get_queue: sql::dml::get_queue(name),

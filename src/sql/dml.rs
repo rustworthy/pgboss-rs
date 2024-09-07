@@ -58,7 +58,7 @@ pub(crate) fn get_queues(schema: &str) -> String {
     )
 }
 
-pub(crate) fn fetch_job(schema: &str) -> String {
+pub(crate) fn fetch_jobs(schema: &str) -> String {
     format!(
         r#"
         WITH next as (

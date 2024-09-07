@@ -65,10 +65,27 @@ impl Client {
     where
         Q: AsRef<str>,
     {
-        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.fetch_one)
+        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.fetch_jobs)
             .bind(queue_name.as_ref())
-            .bind(1)
+            .bind(1f64)
             .fetch_optional(&self.pool)
+            .await?;
+        Ok(maybe_job)
+    }
+
+    /// Fetch a batch of jobs.
+    pub async fn fetch_many<Q>(
+        &self,
+        queue_name: Q,
+        batch_size: u64,
+    ) -> Result<Vec<ActiveJob>, Error>
+    where
+        Q: AsRef<str>,
+    {
+        let maybe_job: Vec<ActiveJob> = sqlx::query_as(&self.stmt.fetch_jobs)
+            .bind(queue_name.as_ref())
+            .bind(batch_size as f64)
+            .fetch_all(&self.pool)
             .await?;
         Ok(maybe_job)
     }
