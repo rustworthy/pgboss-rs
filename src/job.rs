@@ -1,5 +1,6 @@
 use super::utils;
 use serde::{Deserialize, Serialize};
+use sqlx::{postgres::PgRow, prelude::FromRow, Row};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -106,6 +107,50 @@ pub struct Job {
 
     /// Options specific to this job.
     pub opts: JobOptions,
+}
+
+/// A job fetched from the server.
+///
+/// As soon as a job is fetched from the server, it's status transitions to `active`
+/// and whoever has fetch this job will hav
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct ActiveJob {
+    /// ID of this job.
+    pub id: Uuid,
+
+    /// Job's name.
+    pub name: String,
+
+    /// Job's payload.
+    pub data: serde_json::Value,
+
+    /// Execution timeout.
+    ///
+    /// Specifies for how long this job may be in `active` state before
+    /// it is failed because of expiration
+    pub expire_in: Duration,
+}
+
+impl FromRow<'_, PgRow> for ActiveJob {
+    fn from_row(row: &PgRow) -> sqlx::Result<Self> {
+        let id: Uuid = row.try_get("id")?;
+        let name: String = row.try_get("name")?;
+        let data: serde_json::Value = row.try_get("data")?;
+        let expire_in: Duration = row.try_get("expire_in").and_then(|v: f64| match v {
+            v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
+            _ => Err(sqlx::Error::ColumnDecode {
+                index: "expire_in".to_string(),
+                source: "'expire_in' should be non-negative".into(),
+            }),
+        })?;
+        Ok(ActiveJob {
+            id,
+            name,
+            data,
+            expire_in,
+        })
+    }
 }
 
 impl Job {

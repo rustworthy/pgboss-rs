@@ -1,5 +1,5 @@
 use super::Client;
-use crate::job::Job;
+use crate::job::{ActiveJob, Job};
 use crate::Error;
 use crate::JobOptions;
 use sqlx::types::Json;
@@ -16,7 +16,7 @@ impl Client {
         let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
             .bind(job.id)
             .bind(&job.name)
-            .bind(Json(serde_json::json!({})))
+            .bind(Json(&job.data))
             .bind(Json(&job.opts))
             .fetch_one(&self.pool)
             .await
@@ -61,15 +61,15 @@ impl Client {
     }
 
     /// Fetch a job from a queue.
-    pub async fn fetch_one<Q>(&self, queue_name: Q) -> Result<(), Error>
+    pub async fn fetch_one<Q>(&self, queue_name: Q) -> Result<Option<ActiveJob>, Error>
     where
         Q: AsRef<str>,
     {
-        let _d = sqlx::query_as(&self.stmt.fetch_one)
+        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.fetch_one)
             .bind(queue_name.as_ref())
             .bind(1)
-            .fetch_one(&self.pool)
+            .fetch_optional(&self.pool)
             .await?;
-        unimplemented!("{:?}", queue_name.as_ref())
+        Ok(maybe_job)
     }
 }
