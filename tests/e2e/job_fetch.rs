@@ -58,7 +58,7 @@ async fn fetch_one_job() {
 
     // fetch one
     let job = c
-        .fetch_one("jobtype")
+        .fetch_job("jobtype")
         .await
         .expect("no error")
         .expect("a job");
@@ -69,7 +69,7 @@ async fn fetch_one_job() {
 
     // fetch one
     let job = c
-        .fetch_one("jobtype")
+        .fetch_job("jobtype")
         .await
         .expect("no error")
         .expect("a job");
@@ -80,7 +80,7 @@ async fn fetch_one_job() {
 
     // fetch the last one
     let job = c
-        .fetch_one("jobtype")
+        .fetch_job("jobtype")
         .await
         .expect("no error")
         .expect("a job");
@@ -90,12 +90,12 @@ async fn fetch_one_job() {
     assert_eq!(job.expire_in, Duration::from_secs(30)); // our override
 
     // queue has been drained!
-    assert!(c.fetch_one("jobtype").await.expect("no error").is_none());
+    assert!(c.fetch_job("jobtype").await.expect("no error").is_none());
 }
 
 #[tokio::test]
-async fn fetch_many() {
-    let local = "fetch_many";
+async fn fetch_many_jobs() {
+    let local = "fetch_many_jobs";
     utils::drop_schema(&local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
@@ -131,13 +131,13 @@ async fn fetch_many() {
     c.send_job(&job3).await.expect("uuid");
 
     // fetch a batch
-    let jobs = c.fetch_many("jobtype", 2).await.expect("no error");
+    let jobs = c.fetch_jobs("jobtype", 2).await.expect("no error");
 
     assert_eq!(jobs.len(), 2);
 
     // fetch the last one
     let job = c
-        .fetch_one("jobtype")
+        .fetch_job("jobtype")
         .await
         .expect("no error")
         .expect("a job");
@@ -146,5 +146,5 @@ async fn fetch_many() {
     assert_eq!(job.data, json!({"key": "value2", "priority": 0}));
 
     // queue has been drained!
-    assert!(c.fetch_one("jobtype").await.expect("no error").is_none());
+    assert!(c.fetch_job("jobtype").await.expect("no error").is_none());
 }

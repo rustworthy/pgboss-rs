@@ -61,7 +61,7 @@ impl Client {
     }
 
     /// Fetch a job from a queue.
-    pub async fn fetch_one<Q>(&self, queue_name: Q) -> Result<Option<ActiveJob>, Error>
+    pub async fn fetch_job<Q>(&self, queue_name: Q) -> Result<Option<ActiveJob>, Error>
     where
         Q: AsRef<str>,
     {
@@ -74,7 +74,7 @@ impl Client {
     }
 
     /// Fetch a batch of jobs.
-    pub async fn fetch_many<Q>(
+    pub async fn fetch_jobs<Q>(
         &self,
         queue_name: Q,
         batch_size: u64,

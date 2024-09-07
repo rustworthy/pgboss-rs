@@ -76,6 +76,19 @@ pub(crate) fn fetch_jobs(schema: &str) -> String {
         FROM next
         WHERE name = $1 AND j.id = next.id
         RETURNING j.id, name, data, EXTRACT(epoch FROM expire_in)::float8 as expire_in;
-        "#,
+        "#
+    )
+}
+
+pub(crate) fn delete_jobs(schema: &str) -> String {
+    format!(
+        r#"
+        WITH results as (
+            DELETE FROM ${schema}.job
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[]))        
+            RETURNING 1
+        )
+        SELECT COUNT(*) from results;
+        "#
     )
 }
