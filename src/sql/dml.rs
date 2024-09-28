@@ -98,31 +98,134 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
 pub(crate) fn fail_jobs(schema: &str) -> String {
     format!(
         r#"
-        WITH results AS (
-            UPDATE {schema}.job SET
-                state = CASE WHEN retry_count < retry_limit THEN '{0}'::{schema}.job_state ELSE '{1}'::{schema}.job_state END,
-                completed_on = CASE WHEN retry_count < retry_limit THEN NULL ELSE now() END,
-                start_after = CASE
+        WITH deleted_jobs AS (
+            DELETE FROM {schema}.job
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{2}'::{schema}.job_state
+            RETURNING *
+        ),
+        retried_jobs AS (
+            INSERT INTO {schema}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                output
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                CASE
+                    WHEN retry_count < retry_limit THEN '{0}'::{schema}.job_state
+                    ELSE '{1}'::{schema}.job_state
+                END as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                CASE
                     WHEN retry_count = retry_limit THEN start_after
                     WHEN NOT retry_backoff THEN now() + retry_delay * interval '1'
                     ELSE now() + (
                         retry_delay * 2 ^ LEAST(16, retry_count + 1) / 2 +
                         retry_delay * 2 ^ LEAST(16, retry_count + 1) / 2 * random()
                     ) * interval '1'
-                    END,
-                output = $3
-            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{2}'::{schema}.job_state
+                END as start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                CASE
+                    WHEN retry_count < retry_limit THEN NULL
+                    ELSE now()
+                END as completed_on,
+                keep_until,
+                dead_letter,
+                policy,        
+                $3::jsonb
+            FROM deleted_jobs
+            ON CONFLICT DO NOTHING
             RETURNING *
-        ), dlq_jobs AS (
+        ),
+        failed_jobs as (
+            INSERT INTO {schema}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                output
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                '{1}'::{schema}.job_state as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                now() as completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                $3::jsonb
+            FROM deleted_jobs
+            WHERE id NOT IN (SELECT id from retried_jobs)
+            RETURNING *
+        ),
+        results as (
+            SELECT * FROM retried_jobs
+            UNION ALL
+            SELECT * FROM failed_jobs
+        ),
+        dlq_jobs as (
             INSERT INTO {schema}.job (name, data, output, retry_limit, keep_until)
             SELECT dead_letter, data, output, retry_limit, keep_until + (keep_until - start_after)
-            FROM results WHERE state = '{3}'::{schema}.job_state AND dead_letter IS NOT NULL AND NOT name = dead_letter
+            FROM results WHERE state = '{1}'::{schema}.job_state AND dead_letter IS NOT NULL AND NOT name = dead_letter
         )
         SELECT COUNT(*) FROM results
         "#,
         JobState::Retry,     // 0
         JobState::Failed,    // 1
         JobState::Completed, // 2
-        JobState::Failed,    // 3
     )
 }
