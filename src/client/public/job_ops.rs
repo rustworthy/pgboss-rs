@@ -122,7 +122,7 @@ impl Client {
         Ok(deleted_count.0 as usize)
     }
 
-    /// Mark a job as failed
+    /// Mark a job as failed.
     pub async fn fail_job<Q, O>(
         &self,
         queue_name: Q,
@@ -140,8 +140,8 @@ impl Client {
     /// Mark numerous jobs as failed.
     ///
     /// In a happy path, returns the number of jobs marked as `failed`,
-    /// where `0` means either the specified queue does not exist,
-    /// or there are no jobs with these ids in the queue.
+    /// where `0` means there are no jobs with these ids in the queue or
+    /// no such queue.
     pub async fn fail_jobs<Q, I, O>(
         &self,
         queue_name: Q,
@@ -154,6 +154,46 @@ impl Client {
         O: Into<serde_json::Value>,
     {
         let deleted_count: (i64,) = sqlx::query_as(&self.stmt.fail_jobs)
+            .bind(queue_name.as_ref())
+            .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
+            .bind(details.into())
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(deleted_count.0 as usize)
+    }
+
+    /// Mark a job as completed.
+    pub async fn complete_job<Q, O>(
+        &self,
+        queue_name: Q,
+        job_id: Uuid,
+        details: O,
+    ) -> Result<bool, Error>
+    where
+        Q: AsRef<str>,
+        O: Into<serde_json::Value>,
+    {
+        let completed_count = self.complete_jobs(queue_name, [job_id], details).await?;
+        Ok(completed_count == 1)
+    }
+
+    /// Mark numerous jobs as completed.
+    ///
+    /// In a happy path, returns the number of jobs marked as `completed`,
+    /// where `0` means there are no jobs with these ids in the queue or
+    /// no such queue.
+    pub async fn complete_jobs<Q, I, O>(
+        &self,
+        queue_name: Q,
+        job_ids: I,
+        details: O,
+    ) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+        O: Into<serde_json::Value>,
+    {
+        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.complete_jobs)
             .bind(queue_name.as_ref())
             .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
             .bind(details.into())

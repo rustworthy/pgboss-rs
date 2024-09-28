@@ -229,3 +229,19 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
         JobState::Completed, // 2
     )
 }
+
+pub(crate) fn complete_jobs(schema: &str) -> String {
+    format!(
+        r#"
+        WITH results AS (
+            UPDATE {schema}.job
+            SET state = '{1}'::{schema}.job_state, completed_on = now(), output = $3::jsonb
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state = '{0}'::{schema}.job_state
+            RETURNING 1
+        )
+        SELECT COUNT(*) from results;
+        "#,
+        JobState::Active,    // 0
+        JobState::Completed, // 1
+    )
+}

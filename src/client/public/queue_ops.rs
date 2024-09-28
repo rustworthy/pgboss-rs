@@ -7,6 +7,8 @@ use std::borrow::Borrow;
 
 impl Client {
     /// Registers a customized queue in the database.
+    /// 
+    /// This operation will _not_ fail if the queue already exists.
     pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), Error>
     where
         Q: Borrow<QueueOptions<'a>>,
