@@ -7,7 +7,7 @@ use std::borrow::Borrow;
 
 impl Client {
     /// Registers a customized queue in the database.
-    /// 
+    ///
     /// This operation will _not_ fail if the queue already exists.
     pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), Error>
     where
@@ -27,10 +27,7 @@ impl Client {
     where
         Q: AsRef<str>,
     {
-        let q_opts = QueueOptions {
-            name: name.as_ref(),
-            ..Default::default()
-        };
+        let q_opts = QueueOptions::builder().name(name.as_ref()).build();
         self.create_queue(q_opts).await
     }
 

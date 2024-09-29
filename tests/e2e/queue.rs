@@ -171,22 +171,20 @@ async fn create_non_standard_queue() {
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
-    let dlq_opts = QueueOptions {
-        name: "image_processing_dlq",
-        ..Default::default()
-    };
+    let dlq_opts = QueueOptions::builder().name("image_processing_dlq").build();
     client.create_queue(&dlq_opts).await.unwrap();
 
-    let queue_opts = QueueOptions {
-        name: "image_processing",
-        policy: QueuePolicy::Singleton,
-        retry_limit: Some(3),
-        retry_delay: Some(Duration::from_secs(10)),
-        retry_backoff: Some(true),
-        expire_in: Some(Duration::from_secs(60 * 60)),
-        retain_for: Some(Duration::from_secs(60 * 60 * 24)),
-        dead_letter: Some(&dlq_opts.name),
-    };
+    let queue_opts = QueueOptions::builder()
+        .name("image_processing")
+        .policy(QueuePolicy::Singleton)
+        .retry_limit(3)
+        .retry_delay(Duration::from_secs(10))
+        .retry_backoff(true)
+        .expire_in(Duration::from_secs(60 * 60))
+        .retain_for(Duration::from_secs(60 * 60 * 24))
+        .dead_letter(&dlq_opts.name)
+        .build();
+
     client.create_queue(&queue_opts).await.unwrap();
 
     let queues = client.get_queues().await.unwrap();

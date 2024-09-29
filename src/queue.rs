@@ -62,6 +62,7 @@ impl std::fmt::Display for QueuePolicy {
 /// Queue configuration.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct QueueOptions<'a> {
     /// Queue name.
     pub name: &'a str,
@@ -112,8 +113,83 @@ pub struct QueueOptions<'a> {
     pub retain_for: Option<Duration>,
 }
 
+impl<'a> QueueOptions<'a> {
+    /// Returns a builder for `QueueOptions`
+    pub fn builder() -> QueueOptionsBuilder<'a> {
+        QueueOptionsBuilder::default()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct QueueOptionsBuilder<'a> {
+    name: &'a str,
+    policy: QueuePolicy,
+    dead_letter: Option<&'a str>,
+    retry_limit: Option<usize>,
+    retry_delay: Option<Duration>,
+    retry_backoff: Option<bool>,
+    expire_in: Option<Duration>,
+    retain_for: Option<Duration>,
+}
+
+impl<'a> QueueOptionsBuilder<'a> {
+    pub fn name(mut self, val: &'a str) -> Self {
+        self.name = val;
+        self
+    }
+
+    pub fn policy(mut self, val: QueuePolicy) -> Self {
+        self.policy = val;
+        self
+    }
+
+    pub fn dead_letter(mut self, val: &'a str) -> Self {
+        self.dead_letter = Some(val);
+        self
+    }
+
+    pub fn retry_limit(mut self, val: usize) -> Self {
+        self.retry_limit = Some(val);
+        self
+    }
+
+    pub fn retry_delay(mut self, val: Duration) -> Self {
+        self.retry_delay = Some(val);
+        self
+    }
+
+    pub fn retry_backoff(mut self, val: bool) -> Self {
+        self.retry_backoff = Some(val);
+        self
+    }
+
+    pub fn expire_in(mut self, val: Duration) -> Self {
+        self.expire_in = Some(val);
+        self
+    }
+
+    pub fn retain_for(mut self, val: Duration) -> Self {
+        self.retain_for = Some(val);
+        self
+    }
+
+    pub fn build(self) -> QueueOptions<'a> {
+        QueueOptions {
+            name: self.name,
+            policy: self.policy,
+            dead_letter: self.dead_letter,
+            retry_limit: self.retry_limit,
+            retry_delay: self.retry_delay,
+            retry_backoff: self.retry_backoff,
+            expire_in: self.expire_in,
+            retain_for: self.retain_for,
+        }
+    }
+}
+
 /// Job queue info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct QueueInfo {
     /// Queue name.
     pub name: String,

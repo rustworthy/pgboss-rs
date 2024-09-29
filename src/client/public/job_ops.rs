@@ -73,6 +73,28 @@ impl Client {
         Ok(maybe_job)
     }
 
+    /// Get this job's details including metadata.
+    ///
+    /// Unlike [`Client::fetch_job`] _will not consume_ a job from the queue,
+    /// rather will only get this job's details. Useful for monitoring, analyzing
+    /// the execution progress, e.g. how many times this job has been retried or what
+    /// `output` has been written to this jobs.
+    pub async fn get_job_info<Q>(
+        &self,
+        queue_name: Q,
+        job_id: Uuid,
+    ) -> Result<Option<ActiveJob>, Error>
+    where
+        Q: AsRef<str>,
+    {
+        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.get_job_info)
+            .bind(queue_name.as_ref())
+            .bind(job_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(maybe_job)
+    }
+
     /// Fetch a batch of jobs.
     pub async fn fetch_jobs<Q>(
         &self,

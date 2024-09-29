@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 #[cfg(doc)]
 use crate::QueueOptions;
+use crate::QueuePolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum JobState {
@@ -136,6 +137,9 @@ pub struct ActiveJob {
     /// Specifies for how long this job may be in `active` state before
     /// it is failed because of expiration
     pub expire_in: Duration,
+
+    /// [Policy](QueuePolicy) applied to this job.
+    pub policy: QueuePolicy,
 }
 
 impl FromRow<'_, PgRow> for ActiveJob {
@@ -150,11 +154,18 @@ impl FromRow<'_, PgRow> for ActiveJob {
                 source: "'expire_in' should be non-negative".into(),
             }),
         })?;
+        let policy: QueuePolicy = row.try_get("policy").and_then(|v: String| {
+            QueuePolicy::try_from(v).map_err(|e| sqlx::Error::ColumnDecode {
+                index: "policy".to_string(),
+                source: e.into(),
+            })
+        })?;
         Ok(ActiveJob {
             id,
             queue_name,
             data,
             expire_in,
+            policy,
         })
     }
 }

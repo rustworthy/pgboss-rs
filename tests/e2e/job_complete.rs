@@ -38,4 +38,10 @@ async fn complete_job() {
     // job transitioned from `active` to `completed`
     // and so the qeueu was drained
     assert!(c.fetch_job(queue_name).await.unwrap().is_none());
+
+    let _ = c
+        .get_job_info(queue_name, job_id)
+        .await
+        .expect("no error")
+        .expect("is some");
 }
