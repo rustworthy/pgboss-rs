@@ -11,7 +11,7 @@ mod utils;
 
 pub use client::{Client, ClientBuilder};
 pub use error::Error;
-pub use job::{ActiveJob, Job, JobBuilder, JobOptions};
+pub use job::{JobDetails, Job, JobBuilder, JobOptions};
 pub use queue::{QueueInfo, QueueOptions, QueueOptionsBuilder, QueuePolicy};
 
 use chrono::{DateTime, Utc};

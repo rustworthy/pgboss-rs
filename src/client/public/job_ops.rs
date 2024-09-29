@@ -1,5 +1,5 @@
 use super::Client;
-use crate::job::{ActiveJob, Job};
+use crate::job::{JobDetails, Job};
 use crate::Error;
 use crate::JobOptions;
 use sqlx::types::Json;
@@ -61,11 +61,11 @@ impl Client {
     }
 
     /// Fetch a job from a queue.
-    pub async fn fetch_job<Q>(&self, queue_name: Q) -> Result<Option<ActiveJob>, Error>
+    pub async fn fetch_job<Q>(&self, queue_name: Q) -> Result<Option<JobDetails>, Error>
     where
         Q: AsRef<str>,
     {
-        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.fetch_jobs)
+        let maybe_job: Option<JobDetails> = sqlx::query_as(&self.stmt.fetch_jobs)
             .bind(queue_name.as_ref())
             .bind(1f64)
             .fetch_optional(&self.pool)
@@ -83,11 +83,11 @@ impl Client {
         &self,
         queue_name: Q,
         job_id: Uuid,
-    ) -> Result<Option<ActiveJob>, Error>
+    ) -> Result<Option<JobDetails>, Error>
     where
         Q: AsRef<str>,
     {
-        let maybe_job: Option<ActiveJob> = sqlx::query_as(&self.stmt.get_job_info)
+        let maybe_job: Option<JobDetails> = sqlx::query_as(&self.stmt.get_job_info)
             .bind(queue_name.as_ref())
             .bind(job_id)
             .fetch_optional(&self.pool)
@@ -100,11 +100,11 @@ impl Client {
         &self,
         queue_name: Q,
         batch_size: u64,
-    ) -> Result<Vec<ActiveJob>, Error>
+    ) -> Result<Vec<JobDetails>, Error>
     where
         Q: AsRef<str>,
     {
-        let maybe_job: Vec<ActiveJob> = sqlx::query_as(&self.stmt.fetch_jobs)
+        let maybe_job: Vec<JobDetails> = sqlx::query_as(&self.stmt.fetch_jobs)
             .bind(queue_name.as_ref())
             .bind(batch_size as f64)
             .fetch_all(&self.pool)

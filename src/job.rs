@@ -123,7 +123,7 @@ pub struct Job {
 /// and whoever has fetch this job will hav
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct ActiveJob {
+pub struct JobDetails {
     /// ID of this job.
     pub id: Uuid,
 
@@ -169,7 +169,7 @@ pub struct ActiveJob {
     pub started_at: Option<DateTime<Utc>>,
 }
 
-impl FromRow<'_, PgRow> for ActiveJob {
+impl FromRow<'_, PgRow> for JobDetails {
     fn from_row(row: &PgRow) -> sqlx::Result<Self> {
         let id: Uuid = row.try_get("id")?;
         let queue_name: String = row.try_get("name")?;
@@ -220,7 +220,7 @@ impl FromRow<'_, PgRow> for ActiveJob {
         let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
         let start_after: DateTime<Utc> = row.try_get("start_after")?;
 
-        Ok(ActiveJob {
+        Ok(JobDetails {
             id,
             queue_name,
             data,
