@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::utils::{self, POSRGRES_URL};
 use chrono::Utc;
-use pgboss::{Client, QueueOptions, QueuePolicy};
+use pgboss::{Client, Queue, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
@@ -171,10 +171,10 @@ async fn create_non_standard_queue() {
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
-    let dlq_opts = QueueOptions::builder().name("image_processing_dlq").build();
+    let dlq_opts = Queue::builder().name("image_processing_dlq").build();
     client.create_queue(&dlq_opts).await.unwrap();
 
-    let queue_opts = QueueOptions::builder()
+    let queue_opts = Queue::builder()
         .name("image_processing")
         .policy(QueuePolicy::Singleton)
         .retry_limit(3)

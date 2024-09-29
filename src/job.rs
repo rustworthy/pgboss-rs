@@ -6,7 +6,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 #[cfg(doc)]
-use crate::QueueOptions;
+use crate::Queue;
 use crate::QueuePolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +36,60 @@ impl std::fmt::Display for JobState {
 /// Custom job options.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct JobOptions {
+pub(crate) struct JobOptions<'a> {
+    priority: usize,
+
+    /// Name of the dead letter queue for this job.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dead_letter: Option<&'a str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_limit: Option<usize>,
+
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub retry_delay: Option<Duration>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_backoff: Option<bool>,
+
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    expire_in: Option<Duration>,
+
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        rename = "keep_until",
+        skip_serializing_if = "Option::is_none"
+    )]
+    retain_for: Option<Duration>,
+
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        rename = "start_after",
+        skip_serializing_if = "Option::is_none"
+    )]
+    delay_for: Option<Duration>,
+}
+
+/// A job to be sent to the server.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Job<'a> {
+    /// ID to assign to this job.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+
+    /// Name of the queue to put this job onto.
+    pub queue_name: &'a str,
+
+    /// Job's payload.
+    pub data: serde_json::Value,
+
     /// Job's priority.
     ///
     /// Higher numbers will have higher priority
@@ -44,25 +97,18 @@ pub struct JobOptions {
     pub priority: usize,
 
     /// Name of the dead letter queue for this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dead_letter: Option<String>,
+    pub dead_letter: Option<&'a str>,
 
     /// Number of retry attempts.
     ///
     /// If omitted, a value will be taken from queue via [`QueueOptions::retry_limit`]
     /// and - if not set there either - will default to `2` retry attempts.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_limit: Option<usize>,
 
     /// Time to wait before a retry attempt.
-    #[serde(
-        serialize_with = "utils::serialize_duration_as_secs",
-        skip_serializing_if = "Option::is_none"
-    )]
     pub retry_delay: Option<Duration>,
 
     /// Whether to use a backoff between retry attempts.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_backoff: Option<bool>,
 
     /// Time to wait before expiring this job.
@@ -71,10 +117,6 @@ pub struct JobOptions {
     /// it is failed because of expiration.
     ///
     /// Should be between 1 second and 24 hours, or simply unset (default).
-    #[serde(
-        serialize_with = "utils::serialize_duration_as_secs",
-        skip_serializing_if = "Option::is_none"
-    )]
     pub expire_in: Option<Duration>,
 
     /// For how long this job should be retained in the system.
@@ -83,38 +125,10 @@ pub struct JobOptions {
     /// it is archived.
     ///
     /// Should be greater than or equal to 1 second, or simply unset (default).
-    #[serde(
-        serialize_with = "utils::serialize_duration_as_secs",
-        rename = "keep_until",
-        skip_serializing_if = "Option::is_none"
-    )]
     pub retain_for: Option<Duration>,
 
     /// For how long this job should _not_ be visible to consumers.
-    #[serde(
-        serialize_with = "utils::serialize_duration_as_secs",
-        rename = "start_after",
-        skip_serializing_if = "Option::is_none"
-    )]
     pub delay_for: Option<Duration>,
-}
-
-/// A job to be sent to the server.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[non_exhaustive]
-pub struct Job {
-    /// ID to assign to this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<Uuid>,
-
-    /// Name of the queue to put this job onto.
-    pub queue_name: String,
-
-    /// Job's payload.
-    pub data: serde_json::Value,
-
-    /// Options specific to this job.
-    pub opts: JobOptions,
 }
 
 /// A job fetched from the server.
@@ -238,23 +252,43 @@ impl FromRow<'_, PgRow> for JobDetails {
     }
 }
 
-impl Job {
+impl<'a> Job<'a> {
     /// Creates a builder for a job
-    pub fn builder() -> JobBuilder {
+    pub fn builder() -> JobBuilder<'a> {
         JobBuilder::default()
+    }
+
+    pub(crate) fn opts(&self) -> JobOptions<'_> {
+        JobOptions {
+            priority: self.priority,
+            dead_letter: self.dead_letter.as_deref(),
+            retry_limit: self.retry_limit,
+            retry_delay: self.retry_delay,
+            retry_backoff: self.retry_backoff,
+            expire_in: self.expire_in,
+            retain_for: self.retain_for,
+            delay_for: self.delay_for,
+        }
     }
 }
 
 /// A builder for a job.
 #[derive(Debug, Clone, Default)]
-pub struct JobBuilder {
+pub struct JobBuilder<'a> {
     pub(crate) id: Option<Uuid>,
-    pub(crate) queue_name: String,
+    pub(crate) queue_name: &'a str,
     pub(crate) data: serde_json::Value,
-    pub(crate) opts: JobOptions,
+    pub(crate) priority: usize,
+    pub(crate) dead_letter: Option<&'a str>,
+    pub(crate) retry_limit: Option<usize>,
+    pub(crate) retry_delay: Option<Duration>,
+    pub(crate) retry_backoff: Option<bool>,
+    pub(crate) expire_in: Option<Duration>,
+    pub(crate) retain_for: Option<Duration>,
+    pub(crate) delay_for: Option<Duration>,
 }
 
-impl JobBuilder {
+impl<'a> JobBuilder<'a> {
     /// ID to assign to this job.
     pub fn id(mut self, value: Uuid) -> Self {
         self.id = Some(value);
@@ -262,11 +296,8 @@ impl JobBuilder {
     }
 
     /// Name of the queue to put this job onto.
-    pub fn queue_name<S>(mut self, value: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.queue_name = value.into();
+    pub fn queue_name(mut self, value: &'a str) -> Self {
+        self.queue_name = value;
         self
     }
 
@@ -278,35 +309,32 @@ impl JobBuilder {
 
     /// Job's priority.
     pub fn priority(mut self, value: usize) -> Self {
-        self.opts.priority = value;
+        self.priority = value;
         self
     }
 
     /// Name of the dead letter queue for this job.
-    pub fn dead_letter<S>(mut self, value: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.opts.dead_letter = Some(value.into());
+    pub fn dead_letter(mut self, value: &'a str) -> Self {
+        self.dead_letter = Some(value);
         self
     }
 
     /// Number of retry attempts.
 
     pub fn retry_limit(mut self, value: usize) -> Self {
-        self.opts.retry_limit = Some(value);
+        self.retry_limit = Some(value);
         self
     }
 
     /// Time to wait before a retry attempt.
     pub fn retry_delay(mut self, value: Duration) -> Self {
-        self.opts.retry_delay = Some(value);
+        self.retry_delay = Some(value);
         self
     }
 
     /// Whether to use a backoff between retry attempts.
     pub fn retry_backoff(mut self, value: bool) -> Self {
-        self.opts.retry_backoff = Some(value);
+        self.retry_backoff = Some(value);
         self
     }
 
@@ -314,7 +342,7 @@ impl JobBuilder {
     ///
     /// Should be between 1 second and 24 hours, or simply unset (default).
     pub fn expire_in(mut self, value: Duration) -> Self {
-        self.opts.expire_in = Some(value);
+        self.expire_in = Some(value);
         self
     }
 
@@ -322,23 +350,30 @@ impl JobBuilder {
     ///
     /// Should be greater than or equal to 1 second, or simply unset (default).
     pub fn retain_for(mut self, value: Duration) -> Self {
-        self.opts.retain_for = Some(value);
+        self.retain_for = Some(value);
         self
     }
 
     /// For how long this job should _not_ be visible to consumers.
     pub fn delay_for(mut self, value: Duration) -> Self {
-        self.opts.delay_for = Some(value);
+        self.delay_for = Some(value);
         self
     }
 
     /// Creates a job.
-    pub fn build(self) -> Job {
+    pub fn build(self) -> Job<'a> {
         Job {
             id: self.id,
             queue_name: self.queue_name,
             data: self.data,
-            opts: self.opts,
+            priority: self.priority,
+            dead_letter: self.dead_letter,
+            retry_limit: self.retry_limit,
+            retry_delay: self.retry_delay,
+            retry_backoff: self.retry_backoff,
+            expire_in: self.expire_in,
+            retain_for: self.retain_for,
+            delay_for: self.delay_for,
         }
     }
 }

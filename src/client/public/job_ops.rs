@@ -1,5 +1,5 @@
 use super::Client;
-use crate::job::{JobDetails, Job};
+use crate::job::{Job, JobDetails};
 use crate::Error;
 use crate::JobOptions;
 use sqlx::types::Json;
@@ -8,16 +8,16 @@ use uuid::Uuid;
 
 impl Client {
     /// Enqueue a job.
-    pub async fn send_job<J>(&self, job: J) -> Result<Uuid, Error>
+    pub async fn send_job<'a, J>(&self, job: J) -> Result<Uuid, Error>
     where
-        J: Borrow<Job>,
+        J: Borrow<Job<'a>>,
     {
         let job = job.borrow();
         let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
             .bind(job.id)
-            .bind(&job.queue_name)
+            .bind(job.queue_name)
             .bind(Json(&job.data))
-            .bind(Json(&job.opts))
+            .bind(Json(&job.opts()))
             .fetch_one(&self.pool)
             .await
             .map_err(|e| {

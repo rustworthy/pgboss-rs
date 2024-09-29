@@ -63,7 +63,7 @@ impl std::fmt::Display for QueuePolicy {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct QueueOptions<'a> {
+pub struct Queue<'a> {
     /// Queue name.
     pub name: &'a str,
 
@@ -113,16 +113,16 @@ pub struct QueueOptions<'a> {
     pub retain_for: Option<Duration>,
 }
 
-impl<'a> QueueOptions<'a> {
+impl<'a> Queue<'a> {
     /// Returns a builder for `QueueOptions`
-    pub fn builder() -> QueueOptionsBuilder<'a> {
-        QueueOptionsBuilder::default()
+    pub fn builder() -> QueueBuilder<'a> {
+        QueueBuilder::default()
     }
 }
 
 /// Convenience builder for [`QueueOptions`]
 #[derive(Debug, Clone, Default)]
-pub struct QueueOptionsBuilder<'a> {
+pub struct QueueBuilder<'a> {
     name: &'a str,
     policy: QueuePolicy,
     dead_letter: Option<&'a str>,
@@ -133,7 +133,7 @@ pub struct QueueOptionsBuilder<'a> {
     retain_for: Option<Duration>,
 }
 
-impl<'a> QueueOptionsBuilder<'a> {
+impl<'a> QueueBuilder<'a> {
     /// Queue name.
     pub fn name(mut self, val: &'a str) -> Self {
         self.name = val;
@@ -190,8 +190,8 @@ impl<'a> QueueOptionsBuilder<'a> {
     }
 
     /// Terminal method for the builder returing [`QueueOptions`]
-    pub fn build(self) -> QueueOptions<'a> {
-        QueueOptions {
+    pub fn build(self) -> Queue<'a> {
+        Queue {
             name: self.name,
             policy: self.policy,
             dead_letter: self.dead_letter,
@@ -207,7 +207,7 @@ impl<'a> QueueOptionsBuilder<'a> {
 /// Job queue info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct QueueInfo {
+pub struct QueueDetails {
     /// Queue name.
     pub name: String,
 
@@ -239,7 +239,7 @@ pub struct QueueInfo {
     pub updated_on: DateTime<Utc>,
 }
 
-impl FromRow<'_, PgRow> for QueueInfo {
+impl FromRow<'_, PgRow> for QueueDetails {
     fn from_row(row: &PgRow) -> sqlx::Result<Self> {
         let name: String = row.try_get("name")?;
         let policy: QueuePolicy = row.try_get("policy").and_then(|v: String| {
@@ -294,7 +294,7 @@ impl FromRow<'_, PgRow> for QueueInfo {
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
         let created_on: DateTime<Utc> = row.try_get("created_on")?;
         let updated_on: DateTime<Utc> = row.try_get("updated_on")?;
-        Ok(QueueInfo {
+        Ok(QueueDetails {
             name,
             policy,
             retry_limit,
