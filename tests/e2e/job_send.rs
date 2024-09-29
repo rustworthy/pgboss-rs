@@ -164,6 +164,8 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.id, job.id.unwrap());
     assert_eq!(job_info.policy, QueuePolicy::Standard);
     assert_eq!(job_info.queue_name, "jobtype");
+    assert_eq!(job_info.retry_count, 0);
+    // opts
     assert_eq!(job_info.expire_in, job.opts.expire_in.unwrap());
     assert_eq!(job_info.priority, job.opts.priority);
     assert_eq!(job_info.retry_delay, job.opts.retry_delay.unwrap());

@@ -149,6 +149,9 @@ pub struct ActiveJob {
 
     /// Time to wait before a retry attempt.
     pub retry_delay: Duration,
+
+    /// How many times this job was retried.
+    pub retry_count: usize,
 }
 
 impl FromRow<'_, PgRow> for ActiveJob {
@@ -190,6 +193,13 @@ impl FromRow<'_, PgRow> for ActiveJob {
                 source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
             }),
         })?;
+        let retry_count = row.try_get("retry_count").and_then(|v: i32| match v {
+            v if v >= 0 => Ok(v as usize),
+            v => Err(sqlx::Error::ColumnDecode {
+                index: "retry_count".to_string(),
+                source: format!("'retry_count' should be non-negative, got: {}", v).into(),
+            }),
+        })?;
         Ok(ActiveJob {
             id,
             queue_name,
@@ -199,6 +209,7 @@ impl FromRow<'_, PgRow> for ActiveJob {
             priority,
             retry_limit,
             retry_delay,
+            retry_count,
         })
     }
 }

@@ -78,6 +78,15 @@ async fn fail_job_with_retry() {
         .unwrap();
     assert!(marked_as_failed);
 
+    // `retry_count` should be `0` since the job was failed indeed,
+    // but never retried
+    let job_info = c
+        .get_job_info("jobtype", job.id)
+        .await
+        .expect("no error")
+        .expect("this job to be present");
+    assert_eq!(job_info.retry_count, 0);
+
     // fetch a job again
     let job = c
         .fetch_job(queue_name)
@@ -91,6 +100,14 @@ async fn fail_job_with_retry() {
         .await
         .unwrap();
     assert!(marked_as_failed);
+
+    // let's revify that `retry_count` has been updated:
+    let job_info = c
+        .get_job_info("jobtype", job.id)
+        .await
+        .expect("no error")
+        .expect("this job to be present");
+    assert_eq!(job_info.retry_count, 1);
 
     // fetch a job
     let job = c
