@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::utils;
-use pgboss::{Client, Error, Job};
+use pgboss::{Client, Error, Job, QueuePolicy};
 use serde_json::json;
 
 #[tokio::test]
@@ -153,4 +153,19 @@ async fn send_job_fully_customized() {
 
     let inserted_id = c.send_job(&job).await.expect("no error");
     assert_eq!(inserted_id, id);
+
+    let job_info = c
+        .get_job_info("jobtype", inserted_id)
+        .await
+        .expect("no error")
+        .expect("this job to be present");
+
+    assert_eq!(job_info.data, job.data);
+    assert_eq!(job_info.id, job.id.unwrap());
+    assert_eq!(job_info.policy, QueuePolicy::Standard);
+    assert_eq!(job_info.queue_name, "jobtype");
+    assert_eq!(job_info.expire_in, job.opts.expire_in.unwrap());
+    assert_eq!(job_info.priority, job.opts.priority);
+    assert_eq!(job_info.retry_delay, job.opts.retry_delay.unwrap());
+    assert_eq!(job_info.retry_limit, job.opts.retry_limit.unwrap());
 }
