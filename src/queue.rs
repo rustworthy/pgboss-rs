@@ -77,7 +77,7 @@ pub struct QueueOptions<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dead_letter: Option<&'a str>,
 
-    /// Number of retry attempts.
+    /// Number of retry attempts for jobs in this queue.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_limit: Option<usize>,
 
@@ -120,6 +120,7 @@ impl<'a> QueueOptions<'a> {
     }
 }
 
+/// Convenience builder for [`QueueOptions`]
 #[derive(Debug, Clone, Default)]
 pub struct QueueOptionsBuilder<'a> {
     name: &'a str,
@@ -133,46 +134,62 @@ pub struct QueueOptionsBuilder<'a> {
 }
 
 impl<'a> QueueOptionsBuilder<'a> {
+    /// Queue name.
     pub fn name(mut self, val: &'a str) -> Self {
         self.name = val;
         self
     }
 
+    /// Policy to apply to this queue.
     pub fn policy(mut self, val: QueuePolicy) -> Self {
         self.policy = val;
         self
     }
 
+    /// Name of the dead letter queue.
+    ///
+    /// Note that the dead letter queue itself should be created
+    /// ahead of time.
     pub fn dead_letter(mut self, val: &'a str) -> Self {
         self.dead_letter = Some(val);
         self
     }
 
+    /// Number of retry attempts for jobs in this queue.
     pub fn retry_limit(mut self, val: usize) -> Self {
         self.retry_limit = Some(val);
         self
     }
 
+    /// Time to wait before a retry attempt.
     pub fn retry_delay(mut self, val: Duration) -> Self {
         self.retry_delay = Some(val);
         self
     }
 
+    /// Whether to use a backoff between retry attempts.
     pub fn retry_backoff(mut self, val: bool) -> Self {
         self.retry_backoff = Some(val);
         self
     }
 
+    /// Time to wait before expiring this job.
+    ///
+    /// Should be between 1 second and 24 hours, or simply unset (default)
     pub fn expire_in(mut self, val: Duration) -> Self {
         self.expire_in = Some(val);
         self
     }
 
+    /// For how long this job should be retained in the system.
+    ///
+    /// Should be greater than or eqaul to 1 second, or simply unset (default)
     pub fn retain_for(mut self, val: Duration) -> Self {
         self.retain_for = Some(val);
         self
     }
 
+    /// Terminal method for the builder returing [`QueueOptions`]
     pub fn build(self) -> QueueOptions<'a> {
         QueueOptions {
             name: self.name,

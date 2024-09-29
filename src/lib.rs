@@ -12,7 +12,7 @@ mod utils;
 pub use client::{Client, ClientBuilder};
 pub use error::Error;
 pub use job::{ActiveJob, Job, JobBuilder, JobOptions};
-pub use queue::{QueueInfo, QueueOptions, QueuePolicy};
+pub use queue::{QueueInfo, QueueOptions, QueueOptionsBuilder, QueuePolicy};
 
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
