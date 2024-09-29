@@ -140,6 +140,15 @@ pub struct ActiveJob {
 
     /// [Policy](QueuePolicy) applied to this job.
     pub policy: QueuePolicy,
+
+    /// Job's priority.
+    pub priority: usize,
+
+    /// Retry limit for this job.
+    pub retry_limit: usize,
+
+    /// Time to wait before a retry attempt.
+    pub retry_delay: Duration,
 }
 
 impl FromRow<'_, PgRow> for ActiveJob {
@@ -160,12 +169,36 @@ impl FromRow<'_, PgRow> for ActiveJob {
                 source: e.into(),
             })
         })?;
+        let priority = row.try_get("priority").and_then(|v: i32| match v {
+            v if v >= 0 => Ok(v as usize),
+            v => Err(sqlx::Error::ColumnDecode {
+                index: "retry_delay".to_string(),
+                source: format!("'priority' should be non-negative, got: {}", v).into(),
+            }),
+        })?;
+        let retry_limit = row.try_get("retry_limit").and_then(|v: i32| match v {
+            v if v >= 0 => Ok(v as usize),
+            v => Err(sqlx::Error::ColumnDecode {
+                index: "retry_limit".to_string(),
+                source: format!("'retry_limit' should be non-negative, got: {}", v).into(),
+            }),
+        })?;
+        let retry_delay = row.try_get("retry_delay").and_then(|v: i32| match v {
+            v if v >= 0 => Ok(Duration::from_secs(v as u64)),
+            v => Err(sqlx::Error::ColumnDecode {
+                index: "retry_delay".to_string(),
+                source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
+            }),
+        })?;
         Ok(ActiveJob {
             id,
             queue_name,
             data,
             expire_in,
             policy,
+            priority,
+            retry_limit,
+            retry_delay,
         })
     }
 }

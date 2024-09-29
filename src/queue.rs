@@ -253,9 +253,9 @@ impl FromRow<'_, PgRow> for QueueInfo {
                 .and_then(|v: Option<i32>| match v {
                     None => Ok(None),
                     Some(v) if v >= 0 => Ok(Some(v as usize)),
-                    Some(_) => Err(sqlx::Error::ColumnDecode {
+                    Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retry_limit".to_string(),
-                        source: "'retry_limit' should be non-negative".into(),
+                        source: format!("'retry_limit' should be non-negative, got {}", v).into(),
                     }),
                 })?;
         let retry_delay: Option<Duration> =
@@ -263,9 +263,9 @@ impl FromRow<'_, PgRow> for QueueInfo {
                 .and_then(|v: Option<i32>| match v {
                     None => Ok(None),
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
-                    Some(_) => Err(sqlx::Error::ColumnDecode {
+                    Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retry_delay".to_string(),
-                        source: "'retry_delay' should be non-negative".into(),
+                        source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
                     }),
                 })?;
         let retry_backoff: Option<bool> = row.try_get("retry_backoff")?;
@@ -274,9 +274,10 @@ impl FromRow<'_, PgRow> for QueueInfo {
                 .and_then(|v: Option<i32>| match v {
                     None => Ok(None),
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
-                    Some(_) => Err(sqlx::Error::ColumnDecode {
+                    Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "expire_seconds".to_string(),
-                        source: "'expire_seconds' should be non-negative".into(),
+                        source: format!("'expire_seconds' should be non-negative, got: {}", v)
+                            .into(),
                     }),
                 })?;
         let retain_for: Option<Duration> =
@@ -284,9 +285,10 @@ impl FromRow<'_, PgRow> for QueueInfo {
                 .and_then(|v: Option<i32>| match v {
                     None => Ok(None),
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs((v * 60) as u64))),
-                    Some(_) => Err(sqlx::Error::ColumnDecode {
+                    Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retention_minutes".to_string(),
-                        source: "'retention_minutes' should be non-negative".into(),
+                        source: format!("'retention_minutes' should be non-negative, got: {}", v)
+                            .into(),
                     }),
                 })?;
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
