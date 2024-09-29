@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::utils;
+use chrono::Utc;
 use pgboss::{Client, Error, Job, QueuePolicy};
 use serde_json::json;
 
@@ -165,9 +166,11 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.policy, QueuePolicy::Standard);
     assert_eq!(job_info.queue_name, "jobtype");
     assert_eq!(job_info.retry_count, 0);
+    assert!(job_info.created_at < Utc::now());
     // opts
     assert_eq!(job_info.expire_in, job.opts.expire_in.unwrap());
     assert_eq!(job_info.priority, job.opts.priority);
     assert_eq!(job_info.retry_delay, job.opts.retry_delay.unwrap());
     assert_eq!(job_info.retry_limit, job.opts.retry_limit.unwrap());
+    assert_eq!(job_info.retry_backoff, job.opts.retry_backoff.unwrap());
 }

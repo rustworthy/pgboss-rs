@@ -1,4 +1,5 @@
 use super::utils;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, prelude::FromRow, Row};
 use std::time::Duration;
@@ -152,6 +153,12 @@ pub struct ActiveJob {
 
     /// How many times this job was retried.
     pub retry_count: usize,
+
+    /// Whether to use a backoff between retry attempts.
+    pub retry_backoff: bool,
+
+    /// When the job was registered by the server.
+    pub created_at: DateTime<Utc>,
 }
 
 impl FromRow<'_, PgRow> for ActiveJob {
@@ -200,6 +207,9 @@ impl FromRow<'_, PgRow> for ActiveJob {
                 source: format!("'retry_count' should be non-negative, got: {}", v).into(),
             }),
         })?;
+        let retry_backoff: bool = row.try_get("retry_backoff")?;
+        let created_at: DateTime<Utc> = row.try_get("created_at")?;
+
         Ok(ActiveJob {
             id,
             queue_name,
@@ -210,6 +220,8 @@ impl FromRow<'_, PgRow> for ActiveJob {
             retry_limit,
             retry_delay,
             retry_count,
+            retry_backoff,
+            created_at,
         })
     }
 }
