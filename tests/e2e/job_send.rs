@@ -167,10 +167,15 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.queue_name, "jobtype");
     assert_eq!(job_info.retry_count, 0);
     assert!(job_info.created_at < Utc::now());
+    assert!(job_info.started_at.is_none());
     // opts
     assert_eq!(job_info.expire_in, job.opts.expire_in.unwrap());
     assert_eq!(job_info.priority, job.opts.priority);
     assert_eq!(job_info.retry_delay, job.opts.retry_delay.unwrap());
     assert_eq!(job_info.retry_limit, job.opts.retry_limit.unwrap());
     assert_eq!(job_info.retry_backoff, job.opts.retry_backoff.unwrap());
+    assert_eq!(
+        job_info.start_after,
+        job_info.created_at + job.opts.delay_for.unwrap()
+    )
 }

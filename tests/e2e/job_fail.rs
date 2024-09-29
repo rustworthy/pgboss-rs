@@ -1,4 +1,5 @@
 use crate::utils;
+use chrono::Utc;
 use pgboss::{Client, Job};
 use serde_json::json;
 use uuid::Uuid;
@@ -86,6 +87,7 @@ async fn fail_job_with_retry() {
         .expect("no error")
         .expect("this job to be present");
     assert_eq!(job_info.retry_count, 0);
+    assert!(job.started_at.unwrap() < Utc::now());
 
     // fetch a job again
     let job = c

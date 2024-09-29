@@ -159,6 +159,14 @@ pub struct ActiveJob {
 
     /// When the job was registered by the server.
     pub created_at: DateTime<Utc>,
+
+    /// When to make this job 'visible' for consumers.
+    pub start_after: DateTime<Utc>,
+
+    /// When this job was last consumed.
+    ///
+    /// Will be `None` for a job that was not consumed just yet.
+    pub started_at: Option<DateTime<Utc>>,
 }
 
 impl FromRow<'_, PgRow> for ActiveJob {
@@ -209,6 +217,8 @@ impl FromRow<'_, PgRow> for ActiveJob {
         })?;
         let retry_backoff: bool = row.try_get("retry_backoff")?;
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
+        let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
+        let start_after: DateTime<Utc> = row.try_get("start_after")?;
 
         Ok(ActiveJob {
             id,
@@ -222,6 +232,8 @@ impl FromRow<'_, PgRow> for ActiveJob {
             retry_count,
             retry_backoff,
             created_at,
+            start_after,
+            started_at,
         })
     }
 }
