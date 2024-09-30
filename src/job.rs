@@ -277,7 +277,7 @@ impl<'a> Job<'a> {
     pub(crate) fn opts(&self) -> JobOptions<'_> {
         JobOptions {
             priority: self.priority,
-            dead_letter: self.dead_letter.as_deref(),
+            dead_letter: self.dead_letter,
             retry_limit: self.retry_limit,
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,

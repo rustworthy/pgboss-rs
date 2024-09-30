@@ -233,10 +233,10 @@ pub struct QueueDetails {
     pub dead_letter: Option<String>,
 
     /// Date and time when this queue was created.
-    pub created_on: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
 
     /// Date and time when this queue was updated.
-    pub updated_on: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl FromRow<'_, PgRow> for QueueDetails {
@@ -292,8 +292,8 @@ impl FromRow<'_, PgRow> for QueueDetails {
                     }),
                 })?;
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
-        let created_on: DateTime<Utc> = row.try_get("created_on")?;
-        let updated_on: DateTime<Utc> = row.try_get("updated_on")?;
+        let created_at: DateTime<Utc> = row.try_get("created_at")?;
+        let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
         Ok(QueueDetails {
             name,
             policy,
@@ -303,8 +303,8 @@ impl FromRow<'_, PgRow> for QueueDetails {
             expire_in,
             retain_for,
             dead_letter,
-            created_on,
-            updated_on,
+            created_at,
+            updated_at,
         })
     }
 }

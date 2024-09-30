@@ -33,8 +33,8 @@ pub(crate) fn get_queue(schema: &str) -> String {
             expire_seconds,
             retention_minutes,
             dead_letter,
-            created_on,
-            updated_on
+            created_on as created_at,
+            updated_on as updated_at
         FROM {schema}.queue
         WHERE name = $1;
         "
@@ -53,8 +53,8 @@ pub(crate) fn get_queues(schema: &str) -> String {
             expire_seconds,
             retention_minutes,
             dead_letter,
-            created_on,
-            updated_on
+            created_on as created_at,
+            updated_on as updated_at
         FROM {schema}.queue;
         "
     )
@@ -89,9 +89,9 @@ pub(crate) fn fetch_jobs(schema: &str) -> String {
             retry_count,
             retry_backoff,
             start_after,
-            created_on as "created_at",
-            started_on as "started_at",
-            singleton_on as "singleton_at";
+            created_on as created_at,
+            started_on as started_at,
+            singleton_on as singleton_at;
         "#
     )
 }
