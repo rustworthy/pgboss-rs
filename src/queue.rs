@@ -114,13 +114,13 @@ pub struct Queue<'a> {
 }
 
 impl<'a> Queue<'a> {
-    /// Returns a builder for `QueueOptions`
+    /// Returns a builder for [`Queue`]
     pub fn builder() -> QueueBuilder<'a> {
         QueueBuilder::default()
     }
 }
 
-/// Convenience builder for [`QueueOptions`]
+/// Convenience builder for [`Queue`]
 #[derive(Debug, Clone, Default)]
 pub struct QueueBuilder<'a> {
     name: &'a str,
@@ -189,7 +189,7 @@ impl<'a> QueueBuilder<'a> {
         self
     }
 
-    /// Terminal method for the builder returing [`QueueOptions`]
+    /// Terminal method for the builder returing [`Queue`]
     pub fn build(self) -> Queue<'a> {
         Queue {
             name: self.name,

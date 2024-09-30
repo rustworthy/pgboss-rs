@@ -159,7 +159,7 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
                 END as start_after,
                 options->>'singleton_key' as singleton_key,
                 CASE
-                    WHEN (options->>'singleton_on')::integer IS NOT NULL THEN 'epoch'::timestamp + '1 second'::interval * ((options->>'singleton_on')::integer * floor((date_part('epoch', now()) + (options->>'singleton_offset')::integer) / (options->>'singleton_on')::integer))
+                    WHEN (options->>'singleton_for')::integer IS NOT NULL THEN 'epoch'::timestamp + '1 second'::interval * ((options->>'singleton_for')::integer * floor((date_part('epoch', now()) + COALESCE((options->>'singleton_offset')::integer, 0)) / (options->>'singleton_for')::integer))
                     ELSE NULL
                 END as singleton_on,
                 options->>'dead_letter' as dead_letter,

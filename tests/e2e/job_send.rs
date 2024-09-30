@@ -150,6 +150,7 @@ async fn send_job_fully_customized() {
         .expire_in(Duration::from_secs(30))
         .retain_for(Duration::from_secs(60 * 60 * 2))
         .delay_for(Duration::from_secs(5))
+        .singleton_for(Duration::from_secs(7))
         .build();
 
     let inserted_id = c.send_job(&job).await.expect("no error");
@@ -174,8 +175,15 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.retry_delay, job.retry_delay.unwrap());
     assert_eq!(job_info.retry_limit, job.retry_limit.unwrap());
     assert_eq!(job_info.retry_backoff, job.retry_backoff.unwrap());
+    assert!(job_info.singleton_at.is_some());
+
+    // PostgreSQL will cut nanoseconds
     assert_eq!(
-        job_info.start_after,
-        job_info.created_at + job.delay_for.unwrap()
+        job_info
+            .start_after
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        job.start_after
+            .unwrap()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     )
 }

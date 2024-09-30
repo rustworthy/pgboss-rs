@@ -1,5 +1,5 @@
 use super::utils;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, prelude::FromRow, Row};
 use std::time::Duration;
@@ -68,12 +68,14 @@ pub(crate) struct JobOptions<'a> {
     )]
     retain_for: Option<Duration>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_after: Option<DateTime<Utc>>,
+
     #[serde(
         serialize_with = "utils::serialize_duration_as_secs",
-        rename = "start_after",
         skip_serializing_if = "Option::is_none"
     )]
-    delay_for: Option<Duration>,
+    singleton_for: Option<Duration>,
 }
 
 /// A job to be sent to the server.
@@ -101,7 +103,7 @@ pub struct Job<'a> {
 
     /// Number of retry attempts.
     ///
-    /// If omitted, a value will be taken from queue via [`QueueOptions::retry_limit`]
+    /// If omitted, a value will be taken from queue via [`Queue::retry_limit`]
     /// and - if not set there either - will default to `2` retry attempts.
     pub retry_limit: Option<usize>,
 
@@ -127,8 +129,17 @@ pub struct Job<'a> {
     /// Should be greater than or equal to 1 second, or simply unset (default).
     pub retain_for: Option<Duration>,
 
-    /// For how long this job should _not_ be visible to consumers.
-    pub delay_for: Option<Duration>,
+    /// When this job should become visible to consumers.
+    ///
+    /// By default, the job will be visible to consumers as soon as
+    /// it is registered.
+    pub start_after: Option<DateTime<Utc>>,
+
+    /// For how long only one job instance is allowed.
+    ///
+    /// If you set this to, say, 60s and then submit 2 jobs within the same minute,
+    /// only the first job will be registered.
+    pub singleton_for: Option<Duration>,
 }
 
 /// A job fetched from the server.
@@ -181,6 +192,9 @@ pub struct JobDetails {
     ///
     /// Will be `None` for a job that was not consumed just yet.
     pub started_at: Option<DateTime<Utc>>,
+
+    /// ...
+    pub singleton_at: Option<NaiveDateTime>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
@@ -233,6 +247,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
         let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
         let start_after: DateTime<Utc> = row.try_get("start_after")?;
+        let singleton_at: Option<NaiveDateTime> = row.try_get("singleton_at")?;
 
         Ok(JobDetails {
             id,
@@ -248,6 +263,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             created_at,
             start_after,
             started_at,
+            singleton_at,
         })
     }
 }
@@ -267,13 +283,15 @@ impl<'a> Job<'a> {
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
             retain_for: self.retain_for,
-            delay_for: self.delay_for,
+            start_after: self.start_after,
+            singleton_for: self.singleton_for,
         }
     }
 }
 
 /// A builder for a job.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct JobBuilder<'a> {
     pub(crate) id: Option<Uuid>,
     pub(crate) queue_name: &'a str,
@@ -285,7 +303,8 @@ pub struct JobBuilder<'a> {
     pub(crate) retry_backoff: Option<bool>,
     pub(crate) expire_in: Option<Duration>,
     pub(crate) retain_for: Option<Duration>,
-    pub(crate) delay_for: Option<Duration>,
+    pub(crate) start_after: Option<DateTime<Utc>>,
+    pub(crate) singleton_for: Option<Duration>,
 }
 
 impl<'a> JobBuilder<'a> {
@@ -354,9 +373,26 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
+    /// When to make this job 'visible' for consumers.
+    pub fn start_after(mut self, value: DateTime<Utc>) -> Self {
+        self.start_after = Some(value);
+        self
+    }
+
     /// For how long this job should _not_ be visible to consumers.
+    ///
+    /// A convenience method, that, internally, will set [`JobBuilder::start_after`].
     pub fn delay_for(mut self, value: Duration) -> Self {
-        self.delay_for = Some(value);
+        self.start_after = Some(Utc::now() + value);
+        self
+    }
+
+    /// For how long only one job instance is allowed.
+    ///
+    /// If you set this to, say, 60s and then submit 2 jobs within the same minute,
+    /// only the first job will be registered.
+    pub fn singleton_for(mut self, value: Duration) -> Self {
+        self.singleton_for = Some(value);
         self
     }
 
@@ -373,7 +409,8 @@ impl<'a> JobBuilder<'a> {
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
             retain_for: self.retain_for,
-            delay_for: self.delay_for,
+            start_after: self.start_after,
+            singleton_for: self.singleton_for,
         }
     }
 }
