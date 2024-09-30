@@ -76,6 +76,9 @@ pub(crate) struct JobOptions<'a> {
         skip_serializing_if = "Option::is_none"
     )]
     singleton_for: Option<Duration>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    singleton_key: Option<&'a str>,
 }
 
 /// A job to be sent to the server.
@@ -140,6 +143,11 @@ pub struct Job<'a> {
     /// If you set this to, say, 60s and then submit 2 jobs within the same minute,
     /// only the first job will be registered.
     pub singleton_for: Option<Duration>,
+
+    /// Key to use for throttling.
+    ///
+    /// Will extend throttling to allow one job per key within the time slot.
+    pub singleton_key: Option<&'a str>,
 }
 
 /// A job fetched from the server.
@@ -193,8 +201,13 @@ pub struct JobDetails {
     /// Will be `None` for a job that was not consumed just yet.
     pub started_at: Option<DateTime<Utc>>,
 
-    /// ...
+    ///
     pub singleton_at: Option<NaiveDateTime>,
+
+    /// Key to use for throttling.
+    ///
+    /// See [`Job::singleton_key`].
+    pub singleton_key: Option<String>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
@@ -248,6 +261,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
         let start_after: DateTime<Utc> = row.try_get("start_after")?;
         let singleton_at: Option<NaiveDateTime> = row.try_get("singleton_at")?;
+        let singleton_key: Option<String> = row.try_get("singleton_key")?;
 
         Ok(JobDetails {
             id,
@@ -264,6 +278,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             start_after,
             started_at,
             singleton_at,
+            singleton_key,
         })
     }
 }
@@ -285,6 +300,7 @@ impl<'a> Job<'a> {
             retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
+            singleton_key: self.singleton_key,
         }
     }
 }
@@ -305,6 +321,7 @@ pub struct JobBuilder<'a> {
     pub(crate) retain_for: Option<Duration>,
     pub(crate) start_after: Option<DateTime<Utc>>,
     pub(crate) singleton_for: Option<Duration>,
+    pub(crate) singleton_key: Option<&'a str>,
 }
 
 impl<'a> JobBuilder<'a> {
@@ -396,6 +413,14 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
+    /// Key to use for throttling.
+    ///
+    /// Will extend throttling to allow one job per key within the time slot.
+    pub fn singleton_key(mut self, value: &'a str) -> Self {
+        self.singleton_key = Some(value);
+        self
+    }
+
     /// Creates a job.
     pub fn build(self) -> Job<'a> {
         Job {
@@ -411,6 +436,7 @@ impl<'a> JobBuilder<'a> {
             retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
+            singleton_key: self.singleton_key,
         }
     }
 }

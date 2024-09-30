@@ -151,6 +151,7 @@ async fn send_job_fully_customized() {
         .retain_for(Duration::from_secs(60 * 60 * 2))
         .delay_for(Duration::from_secs(5))
         .singleton_for(Duration::from_secs(7))
+        .singleton_key("buzz")
         .build();
 
     let inserted_id = c.send_job(&job).await.expect("no error");
@@ -176,6 +177,7 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.retry_limit, job.retry_limit.unwrap());
     assert_eq!(job_info.retry_backoff, job.retry_backoff.unwrap());
     assert!(job_info.singleton_at.is_some());
+    assert_eq!(job_info.singleton_key.unwrap(), "buzz");
 
     // PostgreSQL will cut nanoseconds
     assert_eq!(
