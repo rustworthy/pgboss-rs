@@ -201,11 +201,14 @@ pub struct JobDetails {
     /// Will be `None` for a job that was not consumed just yet.
     pub started_at: Option<DateTime<Utc>>,
 
-    ///
+    /// Date used by the system internally for throttling.
+    /// 
+    /// This is calculated by the system using [`Job::singleton_for`] period.
+    /// This is the system's implementation detail and should not be relied on.
     pub singleton_at: Option<NaiveDateTime>,
 
     /// Key to use for throttling.
-    ///
+    /// 
     /// See [`Job::singleton_key`].
     pub singleton_key: Option<String>,
 }

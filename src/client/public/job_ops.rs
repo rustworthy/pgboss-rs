@@ -8,6 +8,14 @@ use uuid::Uuid;
 
 impl Client {
     /// Enqueue a job.
+    ///
+    /// Will return [`Error::Conflict`] in case a job with this ID already exist,
+    /// which happen if you are providing the ID yourself.
+    ///
+    /// If the queue does not exist, [`Error::DoesNotExist`] will be returned.
+    ///
+    /// In case the system throttles the job (see [`Job::singleton_key`]), [`Error::Throttled`]
+    /// will be returned.
     pub async fn send_job<'a, J>(&self, job: J) -> Result<Uuid, Error>
     where
         J: Borrow<Job<'a>>,
@@ -23,13 +31,35 @@ impl Client {
             .map_err(|e| {
                 if let Some(db_error) = e.as_database_error() {
                     if let Some(constraint) = db_error.constraint() {
-                        if constraint.starts_with('j') && constraint.ends_with("_pkey") {
-                            return Error::Conflict {
-                                msg: "job with this id already exists",
-                            };
+                        if constraint.starts_with('j') {
+                            if constraint.ends_with("_pkey") {
+                                return Error::Conflict {
+                                    msg: "job with this id already exists",
+                                };
+                            }
+                            if constraint.ends_with("_i1") {
+                                return Error::Throttled {
+                                    msg: "policy 'short' is applied to jobs with state 'created'",
+                                };
+                            }
+                            if constraint.ends_with("_i2") {
+                                return Error::Throttled {
+                                    msg: "policy 'singleton' is applied to jobs with state 'active'",
+                                };
+                            }
+                            if constraint.ends_with("_i3") {
+                                return Error::Throttled {
+                                    msg: "policy 'stately' is applied to jobs with state 'created', 'retry' or 'active'",
+                                };
+                            }
+                            if constraint.ends_with("_i4") {
+                                return Error::Throttled {
+                                    msg: "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'",
+                                };
+                            }
                         }
                         if constraint == "dlq_fkey" {
-                            return Error::Unprocessable {
+                            return Error::DoesNotExist {
                                 msg: "dead letter queue does not exist",
                             };
                         }
@@ -37,7 +67,7 @@ impl Client {
                 }
                 Error::Sqlx(e)
             })?;
-        id.ok_or(Error::Unprocessable {
+        id.ok_or(Error::DoesNotExist {
             msg: "queue does not exist",
         })
     }
@@ -55,7 +85,7 @@ impl Client {
             .bind(Json(JobOptions::default()))
             .fetch_one(&self.pool)
             .await?;
-        id.ok_or(Error::Unprocessable {
+        id.ok_or(Error::DoesNotExist {
             msg: "queue does not exist",
         })
     }

@@ -4,6 +4,7 @@ use crate::utils;
 use chrono::Utc;
 use pgboss::{Client, Error, Job, QueuePolicy};
 use serde_json::json;
+use tokio::time;
 
 #[tokio::test]
 async fn send_job() {
@@ -75,7 +76,7 @@ async fn send_job_with_dead_letter_does_not_exist() {
         .dead_letter("jobtype_dead_letter")
         .build();
     let err = c.send_job(&job).await.unwrap_err();
-    if let Error::Unprocessable { msg } = err {
+    if let Error::DoesNotExist { msg } = err {
         assert_eq!(msg, "dead letter queue does not exist");
     } else {
         unreachable!()
@@ -89,7 +90,7 @@ async fn send_job_queue_does_not_exist() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     let job = Job::builder().queue_name("jobtype").build();
-    if let Error::Unprocessable { msg } = c.send_job(&job).await.unwrap_err() {
+    if let Error::DoesNotExist { msg } = c.send_job(&job).await.unwrap_err() {
         assert!(msg.contains("queue does not exist"))
     } else {
         unreachable!()
@@ -114,7 +115,7 @@ async fn send_data_queue_does_not_exist() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
 
-    if let Error::Unprocessable { msg } = c
+    if let Error::DoesNotExist { msg } = c
         .send_data("jobtype", serde_json::json!({"key": "value"}))
         .await
         .unwrap_err()
@@ -188,4 +189,35 @@ async fn send_job_fully_customized() {
             .unwrap()
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     )
+}
+
+#[tokio::test]
+async fn send_jobs_throttled() {
+    let local = "send_jobs_throttled";
+    utils::drop_schema(&local).await.unwrap();
+
+    let c = Client::builder().schema(local).connect().await.unwrap();
+    c.create_standard_queue("jobtype").await.unwrap();
+
+    let job1 = Job::builder()
+        .queue_name("jobtype")
+        .singleton_for(Duration::from_secs(1))
+        .build();
+    let job2 = Job::builder()
+        .queue_name("jobtype")
+        .singleton_for(Duration::from_secs(1))
+        .build();
+
+    let id1 = c.send_job(&job1).await.expect("no error");
+    let err = c.send_job(&job2).await.unwrap_err();
+    if let Error::Throttled { msg } = err {
+        assert_eq!(msg, "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'");
+    } else {
+        unreachable!()
+    }
+
+    time::sleep(Duration::from_secs(1)).await;
+    
+    let id2 = c.send_job(&job2).await.expect("queued this time and ID issued");
+    assert_ne!(id1, id2);
 }

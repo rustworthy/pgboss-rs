@@ -1,4 +1,4 @@
-FROM postgres:16.4
+FROM postgres:17
 
 WORKDIR /var/lib/postgresql/
 COPY certs ./certs
