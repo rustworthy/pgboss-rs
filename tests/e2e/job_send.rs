@@ -182,6 +182,7 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.retry_backoff, job.retry_backoff.unwrap());
     assert!(job_info.singleton_at.is_some());
     assert_eq!(job_info.singleton_key.unwrap(), "buzz");
+    assert!(job_info.completed_at.is_none());
 
     // PostgreSQL will cut nanoseconds
     assert_eq!(

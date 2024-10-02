@@ -1,4 +1,5 @@
 use crate::utils;
+use chrono::Utc;
 use pgboss::{Client, Job};
 use serde_json::json;
 use uuid::Uuid;
@@ -29,6 +30,8 @@ async fn complete_job() {
         .expect("one job");
     assert_eq!(job.id, job_id);
 
+    let before_completed = Utc::now();
+
     let marked_as_completed = c
         .complete_job(queue_name, job_id, json!({"result": "success!"}))
         .await
@@ -39,9 +42,12 @@ async fn complete_job() {
     // and so the qeueu was drained
     assert!(c.fetch_job(queue_name).await.unwrap().is_none());
 
-    let _ = c
+    let job_details = c
         .get_job(queue_name, job_id)
         .await
         .expect("no error")
         .expect("is some");
+
+    assert!(job_details.completed_at.unwrap() > before_completed);
+    assert!(job_details.completed_at.unwrap() < Utc::now());
 }

@@ -249,6 +249,9 @@ pub struct JobDetails {
     ///
     /// See [`Job::singleton_key`].
     pub singleton_key: Option<String>,
+
+    /// When this job was completed.
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
@@ -300,6 +303,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         let retry_backoff: bool = row.try_get("retry_backoff")?;
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
         let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
+        let completed_at: Option<DateTime<Utc>> = row.try_get("completed_at")?;
         let start_after: DateTime<Utc> = row.try_get("start_after")?;
         let singleton_at: Option<NaiveDateTime> = row.try_get("singleton_at")?;
         let singleton_key: Option<String> = row.try_get("singleton_key")?;
@@ -333,6 +337,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             singleton_at,
             singleton_key,
             state,
+            completed_at,
         })
     }
 }
