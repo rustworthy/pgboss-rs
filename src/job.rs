@@ -211,7 +211,10 @@ pub struct JobDetails {
     pub state: JobState,
 
     /// [Policy](QueuePolicy) applied to this job.
-    pub policy: QueuePolicy,
+    ///
+    /// This will be `None` for jobs consumed from dead
+    /// letter queues.
+    pub policy: Option<QueuePolicy>,
 
     /// Job's priority.
     pub priority: usize,
@@ -252,12 +255,16 @@ pub struct JobDetails {
 
     /// When this job was completed.
     pub completed_at: Option<DateTime<Utc>>,
+
+    /// Name of the dead letter queue for this job, if any.
+    pub dead_letter: Option<String>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
     fn from_row(row: &PgRow) -> sqlx::Result<Self> {
         let id: Uuid = row.try_get("id")?;
         let queue_name: String = row.try_get("name")?;
+        let dead_letter: Option<String> = row.try_get("dead_letter")?;
         let data: serde_json::Value = row.try_get("data")?;
         let expire_in = row.try_get("expire_in").and_then(|v: f64| match v {
             v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
@@ -266,12 +273,18 @@ impl FromRow<'_, PgRow> for JobDetails {
                 source: "'expire_in' should be non-negative".into(),
             }),
         })?;
-        let policy = row.try_get("policy").and_then(|v: String| {
-            QueuePolicy::try_from(v).map_err(|e| sqlx::Error::ColumnDecode {
-                index: "policy".to_string(),
-                source: e.into(),
-            })
-        })?;
+        let policy = row
+            .try_get("policy")
+            .and_then(|v: Option<String>| match v {
+                None => Ok(None),
+                Some(v) => match QueuePolicy::try_from(v) {
+                    Err(e) => Err(sqlx::Error::ColumnDecode {
+                        index: "policy".to_string(),
+                        source: e.into(),
+                    }),
+                    Ok(v) => Ok(Some(v)),
+                },
+            })?;
         let priority = row.try_get("priority").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
@@ -323,6 +336,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         Ok(JobDetails {
             id,
             queue_name,
+            dead_letter,
             data,
             expire_in,
             policy,
@@ -414,8 +428,7 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
-    /// Number of retry attempts.
-
+    /// Maximum number of retry attempts.
     pub fn retry_limit(mut self, value: usize) -> Self {
         self.retry_limit = Some(value);
         self

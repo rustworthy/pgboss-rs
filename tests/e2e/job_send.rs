@@ -166,7 +166,7 @@ async fn send_job_fully_customized() {
 
     assert_eq!(job_info.data, job.data);
     assert_eq!(job_info.id, job.id.unwrap());
-    assert_eq!(job_info.policy, QueuePolicy::Standard);
+    assert_eq!(job_info.policy.unwrap(), QueuePolicy::Standard);
     // Important bit, we have not _consumed_, rather just got it's details,
     // so the state is not 'active' rather still 'created'.
     assert_eq!(job_info.state, JobState::Created);
@@ -227,4 +227,68 @@ async fn send_jobs_throttled() {
         .await
         .expect("queued this time and ID issued");
     assert_ne!(id1, id2);
+}
+
+#[tokio::test]
+async fn send_job_dlq_named_as_main_queue() {
+    let local = "send_job_dlq_named_as_main_queue";
+    utils::drop_schema(&local).await.unwrap();
+
+    let c = Client::builder().schema(local).connect().await.unwrap();
+    c.create_standard_queue("jobtype").await.unwrap();
+    c.create_standard_queue("jobtype_dlq").await.unwrap();
+
+    let job1 = Job::builder()
+        .retry_limit(0)
+        .queue_name("jobtype")
+        .dead_letter("jobtype")
+        .build();
+
+    // but failed job where queue name == dlq name will not get into dlq
+    let id1 = c.send_job(&job1).await.expect("no error");
+
+    let fetched_job_1 = c.fetch_job("jobtype").await.unwrap().unwrap();
+    assert_eq!(fetched_job_1.id, id1);
+
+    // let's fail job1
+    let ok = c
+        .fail_job(
+            "jobtype",
+            fetched_job_1.id,
+            json!({"details": "testing..."}),
+        )
+        .await
+        .unwrap();
+    assert!(ok);
+
+    assert!(c.fetch_job("jobtype_dlq").await.unwrap().is_none());
+
+    let job2 = Job::builder()
+        .retry_limit(0)
+        .queue_name("jobtype")
+        .dead_letter("jobtype_dlq")
+        .build();
+    let id2 = c.send_job(&job2).await.expect("no error");
+
+    let fetched_job_2 = c.fetch_job("jobtype").await.unwrap().unwrap();
+    assert_ne!(fetched_job_2.id, id1);
+    assert_eq!(fetched_job_2.id, id2);
+
+    // let's fail job2
+    let ok = c
+        .fail_job(
+            "jobtype",
+            fetched_job_2.id,
+            json!({"details": "testing again..."}),
+        )
+        .await
+        .unwrap();
+    assert!(ok);
+
+    let job2_from_dlq = c.fetch_job("jobtype_dlq").await.unwrap().unwrap();
+    assert_eq!(fetched_job_2.dead_letter.unwrap(), job2_from_dlq.queue_name);
+    assert_eq!(fetched_job_2.data, job2_from_dlq.data);
+    assert_eq!(fetched_job_2.retry_limit, job2_from_dlq.retry_limit);
+    // assert_eq!(job2.output, job2_from_dlq.output);
+    // assert_eq!(job2.keep_until, job2_from_dlq.keep_until);
 }
