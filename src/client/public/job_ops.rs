@@ -109,11 +109,7 @@ impl Client {
     /// rather will only get this job's details. Useful for monitoring, analyzing
     /// the execution progress, e.g. how many times this job has been retried or what
     /// `output` has been written to this jobs.
-    pub async fn get_job_info<Q>(
-        &self,
-        queue_name: Q,
-        job_id: Uuid,
-    ) -> Result<Option<JobDetails>, Error>
+    pub async fn get_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<Option<JobDetails>, Error>
     where
         Q: AsRef<str>,
     {

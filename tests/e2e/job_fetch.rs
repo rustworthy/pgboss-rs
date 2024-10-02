@@ -93,7 +93,7 @@ async fn fetch_one_job() {
     assert!(c.fetch_job("jobtype").await.expect("no error").is_none());
 
     let job_info = c
-        .get_job_info("jobtype", job.id)
+        .get_job("jobtype", job.id)
         .await
         .expect("no error")
         .expect("info on this job");

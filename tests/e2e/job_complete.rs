@@ -40,7 +40,7 @@ async fn complete_job() {
     assert!(c.fetch_job(queue_name).await.unwrap().is_none());
 
     let _ = c
-        .get_job_info(queue_name, job_id)
+        .get_job(queue_name, job_id)
         .await
         .expect("no error")
         .expect("is some");

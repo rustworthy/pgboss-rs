@@ -82,7 +82,7 @@ async fn fail_job_with_retry() {
     // `retry_count` should be `0` since the job was failed indeed,
     // but never retried
     let job_info = c
-        .get_job_info("jobtype", job.id)
+        .get_job("jobtype", job.id)
         .await
         .expect("no error")
         .expect("this job to be present");
@@ -105,7 +105,7 @@ async fn fail_job_with_retry() {
 
     // let's revify that `retry_count` has been updated:
     let job_info = c
-        .get_job_info("jobtype", job.id)
+        .get_job("jobtype", job.id)
         .await
         .expect("no error")
         .expect("this job to be present");

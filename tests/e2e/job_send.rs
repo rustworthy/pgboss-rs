@@ -159,7 +159,7 @@ async fn send_job_fully_customized() {
     assert_eq!(inserted_id, id);
 
     let job_info = c
-        .get_job_info("jobtype", inserted_id)
+        .get_job("jobtype", inserted_id)
         .await
         .expect("no error")
         .expect("this job to be present");
