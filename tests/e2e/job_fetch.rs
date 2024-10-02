@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::utils;
-use pgboss::{Client, Job};
+use pgboss::{Client, Job, JobState};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -91,6 +91,13 @@ async fn fetch_one_job() {
 
     // queue has been drained!
     assert!(c.fetch_job("jobtype").await.expect("no error").is_none());
+
+    let job_info = c
+        .get_job_info("jobtype", job.id)
+        .await
+        .expect("no error")
+        .expect("info on this job");
+    assert_eq!(job_info.state, JobState::Active);
 }
 
 #[tokio::test]

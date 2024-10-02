@@ -82,6 +82,7 @@ pub(crate) fn fetch_jobs(schema: &str) -> String {
             name,
             data,
             EXTRACT(epoch FROM expire_in)::float8 as expire_in,
+            state,
             policy,
             priority,
             retry_limit,
@@ -260,7 +261,7 @@ pub(crate) fn complete_jobs(schema: &str) -> String {
         JobState::Completed, // 1
     )
 }
-//                   +                       +          +        +                     +             +             +              +                      +                                +                        +             +              +                   +                                                                                                                              +
+//                   +                       +          +        +        +            +             +             +              +                      +                                +                        +             +              +                   +                                                                                                                              +
 //                   id                  |  name   | priority | data |   state   | retry_limit | retry_count | retry_delay | retry_backoff |          start_after          |          started_on           | singleton_key | singleton_on | expire_in |          created_on           |         completed_on          |          keep_until           |         output         | dead_letter |  policy
 // --------------------------------------+---------+----------+------+-----------+-------------+-------------+-------------+---------------+-------------------------------+-------------------------------+---------------+--------------+-----------+-------------------------------+-------------------------------+-------------------------------+------------------------+-------------+----------
 //  71c7e215-0528-417c-951b-fc01b3fac4b3 | jobtype |        0 | null | completed |           0 |           0 |           0 | f             | 2024-09-29 09:23:09.502695+00 | 2024-09-29 09:23:09.514796+00 |               |              | 00:15:00  | 2024-09-29 09:23:09.502695+00 | 2024-09-29 09:23:09.526609+00 | 2024-10-13 09:23:09.502695+00 | {"result": "success!"} |             | standard
@@ -272,6 +273,7 @@ pub(crate) fn get_job_info(schema: &str) -> String {
             name,
             data,
             EXTRACT(epoch FROM expire_in)::float8 as expire_in,
+            state,
             policy,
             priority,
             retry_limit,

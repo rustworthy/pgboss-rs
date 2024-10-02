@@ -1,7 +1,11 @@
 use super::utils;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, prelude::FromRow, Row};
+use sqlx::{
+    postgres::{PgRow, PgValueRef},
+    prelude::FromRow,
+    Row,
+};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -9,14 +13,45 @@ use uuid::Uuid;
 use crate::Queue;
 use crate::QueuePolicy;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum JobState {
+/// Job's state.
+///
+/// Each job registed in the system gets assigned status `created`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum JobState {
+    /// Job has been registered.
+    #[default]
     Created,
+
+    /// Job has been failed and can now be retried.
     Retry,
+
+    /// Job has been consumed and is being processed by a worker.
     Active,
+
+    /// Job has been compeleted.
     Completed,
+
+    /// Job has been cancelled.
     Cancelled,
+
+    /// Job has been failed.
     Failed,
+}
+
+impl TryFrom<String> for JobState {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "created" => Ok(Self::Created),
+            "retry" => Ok(Self::Retry),
+            "active" => Ok(Self::Active),
+            "completed" => Ok(Self::Completed),
+            "cancelled" => Ok(Self::Cancelled),
+            "failed" => Ok(Self::Failed),
+            other => Err(format!("Unsupported job state: {}", other)),
+        }
+    }
 }
 
 impl std::fmt::Display for JobState {
@@ -172,6 +207,9 @@ pub struct JobDetails {
     /// it is failed because of expiration
     pub expire_in: Duration,
 
+    /// This job's [`JobState`].
+    pub state: JobState,
+
     /// [Policy](QueuePolicy) applied to this job.
     pub policy: QueuePolicy,
 
@@ -202,13 +240,13 @@ pub struct JobDetails {
     pub started_at: Option<DateTime<Utc>>,
 
     /// Date used by the system internally for throttling.
-    /// 
+    ///
     /// This is calculated by the system using [`Job::singleton_for`] period.
     /// This is the system's implementation detail and should not be relied on.
     pub singleton_at: Option<NaiveDateTime>,
 
     /// Key to use for throttling.
-    /// 
+    ///
     /// See [`Job::singleton_key`].
     pub singleton_key: Option<String>,
 }
@@ -218,14 +256,14 @@ impl FromRow<'_, PgRow> for JobDetails {
         let id: Uuid = row.try_get("id")?;
         let queue_name: String = row.try_get("name")?;
         let data: serde_json::Value = row.try_get("data")?;
-        let expire_in: Duration = row.try_get("expire_in").and_then(|v: f64| match v {
+        let expire_in = row.try_get("expire_in").and_then(|v: f64| match v {
             v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
             _ => Err(sqlx::Error::ColumnDecode {
                 index: "expire_in".to_string(),
                 source: "'expire_in' should be non-negative".into(),
             }),
         })?;
-        let policy: QueuePolicy = row.try_get("policy").and_then(|v: String| {
+        let policy = row.try_get("policy").and_then(|v: String| {
             QueuePolicy::try_from(v).map_err(|e| sqlx::Error::ColumnDecode {
                 index: "policy".to_string(),
                 source: e.into(),
@@ -265,6 +303,18 @@ impl FromRow<'_, PgRow> for JobDetails {
         let start_after: DateTime<Utc> = row.try_get("start_after")?;
         let singleton_at: Option<NaiveDateTime> = row.try_get("singleton_at")?;
         let singleton_key: Option<String> = row.try_get("singleton_key")?;
+        let state = row.try_get_raw("state").and_then(|v: PgValueRef| {
+            let v = v.as_str().map_err(|e| sqlx::Error::ColumnDecode {
+                index: "state".to_string(),
+                source: e,
+            })?;
+            let state =
+                JobState::try_from(v.to_string()).map_err(|e| sqlx::Error::ColumnDecode {
+                    index: "state".to_string(),
+                    source: e.into(),
+                })?;
+            Ok(state)
+        })?;
 
         Ok(JobDetails {
             id,
@@ -282,6 +332,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             started_at,
             singleton_at,
             singleton_key,
+            state,
         })
     }
 }

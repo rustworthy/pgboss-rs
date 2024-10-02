@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::utils;
 use chrono::Utc;
-use pgboss::{Client, Error, Job, QueuePolicy};
+use pgboss::{Client, Error, Job, JobState, QueuePolicy};
 use serde_json::json;
 use tokio::time;
 
@@ -167,6 +167,9 @@ async fn send_job_fully_customized() {
     assert_eq!(job_info.data, job.data);
     assert_eq!(job_info.id, job.id.unwrap());
     assert_eq!(job_info.policy, QueuePolicy::Standard);
+    // Important bit, we have not _consumed_, rather just got it's details,
+    // so the state is not 'active' rather still 'created'.
+    assert_eq!(job_info.state, JobState::Created);
     assert_eq!(job_info.queue_name, "jobtype");
     assert_eq!(job_info.retry_count, 0);
     assert!(job_info.created_at < Utc::now());
@@ -217,7 +220,10 @@ async fn send_jobs_throttled() {
     }
 
     time::sleep(Duration::from_secs(1)).await;
-    
-    let id2 = c.send_job(&job2).await.expect("queued this time and ID issued");
+
+    let id2 = c
+        .send_job(&job2)
+        .await
+        .expect("queued this time and ID issued");
     assert_ne!(id1, id2);
 }
