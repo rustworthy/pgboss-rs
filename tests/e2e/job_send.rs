@@ -299,5 +299,9 @@ async fn send_job_dlq_named_as_main_queue() {
     // we are efffectively resetting keep_until when writing a job
     // to the `schema_name.job` relation
     assert_ne!(fetched_job_2.keep_until, job2_from_dlq.keep_until);
-    // assert_eq!(job2.output, job2_from_dlq.output);
+    // latest output is preserved when sending job to dlq
+    assert_eq!(
+        json!({"details": "testing again..."}),
+        job2_from_dlq.output.unwrap()
+    );
 }

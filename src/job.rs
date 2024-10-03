@@ -10,7 +10,8 @@ use std::time::Duration;
 use uuid::Uuid;
 
 #[cfg(doc)]
-use crate::Queue;
+use crate::{Client, Queue};
+
 use crate::QueuePolicy;
 
 /// Job's state.
@@ -262,6 +263,12 @@ pub struct JobDetails {
     ///
     /// Defalts to two weeks
     pub keep_until: DateTime<Utc>,
+
+    /// Job's output, if any.
+    ///
+    /// A worker can report `output` when completing ([`Client::complete_job`] and [`Client::complete_jobs`])
+    /// or failing ([`Client::fail_job`] and [`Client::fail_jobs`]) a job.
+    pub output: Option<serde_json::Value>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
@@ -337,6 +344,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             Ok(state)
         })?;
         let keep_until: DateTime<Utc> = row.try_get("keep_until")?;
+        let output: Option<serde_json::Value> = row.try_get("output")?;
 
         Ok(JobDetails {
             id,
@@ -358,6 +366,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             state,
             completed_at,
             keep_until,
+            output,
         })
     }
 }
