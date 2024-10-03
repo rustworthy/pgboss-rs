@@ -138,7 +138,8 @@ async fn send_job_fully_customized() {
         .unwrap();
 
     let id = uuid::Uuid::new_v4();
-
+    // `JobBuilder::retain_for` can do the following for us
+    let keep_until = Utc::now() + Duration::from_secs(60 * 60 * 2);
     let job = Job::builder()
         .id(id)
         .queue_name("jobtype")
@@ -149,7 +150,7 @@ async fn send_job_fully_customized() {
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
         .expire_in(Duration::from_secs(30))
-        .retain_for(Duration::from_secs(60 * 60 * 2))
+        .keep_until(keep_until)
         .delay_for(Duration::from_secs(5))
         .singleton_for(Duration::from_secs(7))
         .singleton_key("buzz")
@@ -192,7 +193,13 @@ async fn send_job_fully_customized() {
         job.start_after
             .unwrap()
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-    )
+    );
+    assert_eq!(
+        job_info
+            .keep_until
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        keep_until.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    );
 }
 
 #[tokio::test]
@@ -289,6 +296,8 @@ async fn send_job_dlq_named_as_main_queue() {
     assert_eq!(fetched_job_2.dead_letter.unwrap(), job2_from_dlq.queue_name);
     assert_eq!(fetched_job_2.data, job2_from_dlq.data);
     assert_eq!(fetched_job_2.retry_limit, job2_from_dlq.retry_limit);
+    // we are efffectively resetting keep_until when writing a job
+    // to the `schema_name.job` relation
+    assert_ne!(fetched_job_2.keep_until, job2_from_dlq.keep_until);
     // assert_eq!(job2.output, job2_from_dlq.output);
-    // assert_eq!(job2.keep_until, job2_from_dlq.keep_until);
 }

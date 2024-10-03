@@ -96,12 +96,8 @@ pub(crate) struct JobOptions<'a> {
     )]
     expire_in: Option<Duration>,
 
-    #[serde(
-        serialize_with = "utils::serialize_duration_as_secs",
-        rename = "keep_until",
-        skip_serializing_if = "Option::is_none"
-    )]
-    retain_for: Option<Duration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keep_until: Option<DateTime<Utc>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     start_after: Option<DateTime<Utc>>,
@@ -159,13 +155,13 @@ pub struct Job<'a> {
     /// Should be between 1 second and 24 hours, or simply unset (default).
     pub expire_in: Option<Duration>,
 
-    /// For how long this job should be retained in the system.
+    /// When this job can be archived.
     ///
     /// Specifies for how long this job may be in `created` or `retry` state before
     /// it is archived.
     ///
     /// Should be greater than or equal to 1 second, or simply unset (default).
-    pub retain_for: Option<Duration>,
+    pub keep_until: Option<DateTime<Utc>>,
 
     /// When this job should become visible to consumers.
     ///
@@ -258,6 +254,14 @@ pub struct JobDetails {
 
     /// Name of the dead letter queue for this job, if any.
     pub dead_letter: Option<String>,
+
+    /// When this job can be archived.
+    ///
+    /// Specifies for how long this job may be in `created` or `retry` state before
+    /// it is archived.
+    ///
+    /// Defalts to two weeks
+    pub keep_until: DateTime<Utc>,
 }
 
 impl FromRow<'_, PgRow> for JobDetails {
@@ -332,6 +336,7 @@ impl FromRow<'_, PgRow> for JobDetails {
                 })?;
             Ok(state)
         })?;
+        let keep_until: DateTime<Utc> = row.try_get("keep_until")?;
 
         Ok(JobDetails {
             id,
@@ -352,6 +357,7 @@ impl FromRow<'_, PgRow> for JobDetails {
             singleton_key,
             state,
             completed_at,
+            keep_until,
         })
     }
 }
@@ -370,7 +376,7 @@ impl<'a> Job<'a> {
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            retain_for: self.retain_for,
+            keep_until: self.keep_until,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,
@@ -391,7 +397,7 @@ pub struct JobBuilder<'a> {
     pub(crate) retry_delay: Option<Duration>,
     pub(crate) retry_backoff: Option<bool>,
     pub(crate) expire_in: Option<Duration>,
-    pub(crate) retain_for: Option<Duration>,
+    pub(crate) keep_until: Option<DateTime<Utc>>,
     pub(crate) start_after: Option<DateTime<Utc>>,
     pub(crate) singleton_for: Option<Duration>,
     pub(crate) singleton_key: Option<&'a str>,
@@ -454,11 +460,17 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
+    /// When this job can be archived.
+    pub fn keep_until(mut self, value: DateTime<Utc>) -> Self {
+        self.keep_until = Some(value);
+        self
+    }
+
     /// For how long this job should be retained in the system.
     ///
-    /// Should be greater than or equal to 1 second, or simply unset (default).
+    /// Will calculate and set [`JobBuilder::keep_until`].
     pub fn retain_for(mut self, value: Duration) -> Self {
-        self.retain_for = Some(value);
+        self.keep_until = Some(Utc::now() + value);
         self
     }
 
@@ -505,7 +517,7 @@ impl<'a> JobBuilder<'a> {
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            retain_for: self.retain_for,
+            keep_until: self.keep_until,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,
