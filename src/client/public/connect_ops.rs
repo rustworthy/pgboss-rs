@@ -8,7 +8,14 @@ use sqlx::postgres::PgPool;
 use super::ClientBuilder;
 
 impl Client {
-    /// Connect to the PostgreSQL server.
+    /// Create new [`Client`] and connect to a PostgreSQL server.
+    ///
+    /// If `url` is not given, `POSTGRES_PROVIDER` is read to get the name of the environment variable
+    /// to get the address from (defaults to `POSTGRES_URL`), and then that environment variable is read
+    /// to get the server address. If the latter environment variable is not defined, the connection will be
+    /// made to `postgres://localhost:5432`.
+    ///
+    /// You can optionally use [`Client::connect_to`] and pass the `url` as an argument.
     pub async fn connect() -> Result<Client, Error> {
         let pool = utils::create_pool(None).await?;
         Client::with_pool(pool).await
