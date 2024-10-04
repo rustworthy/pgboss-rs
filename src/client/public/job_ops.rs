@@ -148,8 +148,8 @@ impl Client {
     where
         Q: AsRef<str>,
     {
-        let deleted_count = self.delete_jobs(queue_name, [job_id]).await?;
-        Ok(deleted_count == 1)
+        let count = self.delete_jobs(queue_name, [job_id]).await?;
+        Ok(count == 1)
     }
 
     /// Delete numerous jobs from a queue.
@@ -162,12 +162,12 @@ impl Client {
         Q: AsRef<str>,
         J: IntoIterator<Item = Uuid>,
     {
-        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.delete_jobs)
+        let count: (i64,) = sqlx::query_as(&self.stmt.delete_jobs)
             .bind(queue_name.as_ref())
             .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
             .fetch_one(&self.pool)
             .await?;
-        Ok(deleted_count.0 as usize)
+        Ok(count.0 as usize)
     }
 
     /// Mark a job as failed.
@@ -181,8 +181,8 @@ impl Client {
         Q: AsRef<str>,
         O: Into<serde_json::Value>,
     {
-        let deleted_count = self.fail_jobs(queue_name, [job_id], details).await?;
-        Ok(deleted_count == 1)
+        let count = self.fail_jobs(queue_name, [job_id], details).await?;
+        Ok(count == 1)
     }
 
     /// Mark numerous jobs as failed.
@@ -201,13 +201,13 @@ impl Client {
         I: IntoIterator<Item = Uuid>,
         O: Into<serde_json::Value>,
     {
-        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.fail_jobs)
-            .bind(queue_name.as_ref())
-            .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
-            .bind(details.into())
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(deleted_count.0 as usize)
+        self.update_jobs_returning_affected_count(
+            queue_name,
+            job_ids,
+            details,
+            &self.stmt.fail_jobs,
+        )
+        .await
     }
 
     /// Mark a job as completed.
@@ -221,11 +221,11 @@ impl Client {
         Q: AsRef<str>,
         O: Into<serde_json::Value>,
     {
-        let completed_count = self.complete_jobs(queue_name, [job_id], details).await?;
-        Ok(completed_count == 1)
+        let count = self.complete_jobs(queue_name, [job_id], details).await?;
+        Ok(count == 1)
     }
 
-    /// Mark numerous jobs as completed.
+    /// Mark numerous jobs as `completed`.
     ///
     /// In a happy path, returns the number of jobs marked as `completed`,
     /// where `0` means there are no jobs with these ids in the queue or
@@ -241,12 +241,58 @@ impl Client {
         I: IntoIterator<Item = Uuid>,
         O: Into<serde_json::Value>,
     {
-        let deleted_count: (i64,) = sqlx::query_as(&self.stmt.complete_jobs)
+        self.update_jobs_returning_affected_count(
+            queue_name,
+            job_ids,
+            details,
+            &self.stmt.complete_jobs,
+        )
+        .await
+    }
+
+    /// Mark numerous jobs as `cancelled`.
+    ///
+    /// In a happy path, returns the number of jobs marked as `cancelled`,
+    /// where `0` means there are no jobs with these ids in the queue or
+    /// no such queue.
+    pub async fn cancel_jobs<Q, I, O>(
+        &self,
+        queue_name: Q,
+        job_ids: I,
+        details: O,
+    ) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+        O: Into<serde_json::Value>,
+    {
+        self.update_jobs_returning_affected_count(
+            queue_name,
+            job_ids,
+            details,
+            &self.stmt.cancel_jobs,
+        )
+        .await
+    }
+
+    async fn update_jobs_returning_affected_count<Q, I, O>(
+        &self,
+        queue_name: Q,
+        job_ids: I,
+        details: O,
+        q: &str,
+    ) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+        O: Into<serde_json::Value>,
+    {
+        let count: (i64,) = sqlx::query_as(q)
             .bind(queue_name.as_ref())
             .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
             .bind(details.into())
             .fetch_one(&self.pool)
             .await?;
-        Ok(deleted_count.0 as usize)
+        Ok(count.0 as usize)
     }
 }
