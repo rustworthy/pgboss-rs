@@ -1,33 +1,27 @@
-use crate::utils;
+use crate::utils::{self, prepare};
 use pgboss::{Client, Job};
 use uuid::Uuid;
 
 #[tokio::test]
 async fn delete_job_queue_does_not_exist() {
-    let local = "delete_job_queue_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    let schema_name = "delete_job_queue_does_not_exist";
+    let qname = "jobtype";
+    utils::drop_schema(&schema_name).await.unwrap();
 
-    let c = Client::builder().schema(local).connect().await.unwrap();
-
-    let job_id = Uuid::new_v4();
-    let queue_name = "jobtype";
-
-    let deleted = c.delete_job(queue_name, job_id).await.unwrap();
+    let c = Client::builder()
+        .schema(schema_name)
+        .connect()
+        .await
+        .unwrap();
+    let deleted = c.delete_job(qname, Uuid::new_v4()).await.unwrap();
     assert!(!deleted)
 }
 
 #[tokio::test]
 async fn delete_job_does_not_exist() {
-    let local = "delete_job_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
-
-    let c = Client::builder().schema(local).connect().await.unwrap();
-    c.create_standard_queue("jobtype").await.unwrap();
-
-    let job_id = Uuid::new_v4();
-    let queue_name = "jobtype";
-
-    let deleted = c.delete_job(queue_name, job_id).await.unwrap();
+    let qname = "jobtype";
+    let c = prepare("delete_job_does_not_exist", qname).await;
+    let deleted = c.delete_job(qname, Uuid::new_v4()).await.unwrap();
     assert!(!deleted);
 }
 

@@ -1,3 +1,4 @@
+use pgboss::Client;
 use sqlx::Connection;
 
 lazy_static::lazy_static! {
@@ -25,4 +26,11 @@ where
 pub(crate) async fn drop_schema(schema: &str) -> Result<(), sqlx::Error> {
     let stmt = format!("DROP SCHEMA IF EXISTS {} CASCADE", schema);
     ad_hoc_sql([stmt]).await
+}
+
+pub(crate) async fn prepare(schema: &str, qname: &str) -> Client {
+    drop_schema(schema).await.unwrap();
+    let c = Client::builder().schema(schema).connect().await.unwrap();
+    c.create_standard_queue(qname).await.unwrap();
+    c
 }

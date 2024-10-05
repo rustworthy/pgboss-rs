@@ -2,6 +2,7 @@ use super::Client;
 use crate::job::{Job, JobDetails};
 use crate::Error;
 use crate::JobOptions;
+use serde_json::json;
 use sqlx::types::Json;
 use std::borrow::Borrow;
 use uuid::Uuid;
@@ -170,8 +171,24 @@ impl Client {
         Ok(count.0 as usize)
     }
 
-    /// Mark a job as failed.
-    pub async fn fail_job<Q, O>(
+    /// Mark a job as `failed`.
+    pub async fn fail_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<bool, Error>
+    where
+        Q: AsRef<str>,
+    {
+        let count = self
+            .update_jobs_returning_affected_count(
+                queue_name,
+                [job_id],
+                Some(json!({})),
+                &self.stmt.fail_jobs,
+            )
+            .await?;
+        Ok(count == 1)
+    }
+
+    /// Mark a job as `failed` leaving details in the jobs' `output`.
+    pub async fn fail_job_with_details<Q, O>(
         &self,
         queue_name: Q,
         job_id: Uuid,
@@ -181,16 +198,18 @@ impl Client {
         Q: AsRef<str>,
         O: Into<serde_json::Value>,
     {
-        let count = self.fail_jobs(queue_name, [job_id], details).await?;
+        let count = self
+            .fail_jobs_with_details(queue_name, [job_id], details)
+            .await?;
         Ok(count == 1)
     }
 
-    /// Mark numerous jobs as failed.
+    /// Mark numerous jobs as `failed` leaving details in the jobs' `output`.
     ///
     /// In a happy path, returns the number of jobs marked as `failed`,
     /// where `0` means there are no jobs with these ids in the queue or
     /// no such queue.
-    pub async fn fail_jobs<Q, I, O>(
+    pub async fn fail_jobs_with_details<Q, I, O>(
         &self,
         queue_name: Q,
         job_ids: I,
@@ -204,13 +223,30 @@ impl Client {
         self.update_jobs_returning_affected_count(
             queue_name,
             job_ids,
-            details,
+            Some(details.into()),
+            &self.stmt.fail_jobs,
+        )
+        .await
+    }
+
+    /// Mark numerous jobs as `failed`.
+    pub async fn fail_jobs<Q, I>(&self, queue_name: Q, job_ids: I) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+    {
+        self.update_jobs_returning_affected_count(
+            queue_name,
+            job_ids,
+            Some(json!({})),
             &self.stmt.fail_jobs,
         )
         .await
     }
 
     /// Mark a job as completed.
+    ///
+    /// Will call [`Client::complete_jobs`] internally.
     pub async fn complete_job<Q, O>(
         &self,
         queue_name: Q,
@@ -244,10 +280,21 @@ impl Client {
         self.update_jobs_returning_affected_count(
             queue_name,
             job_ids,
-            details,
+            Some(details.into()),
             &self.stmt.complete_jobs,
         )
         .await
+    }
+
+    /// Mark a job as `cancelled`.
+    ///
+    /// Will call [`Client::cancel_jobs`] internally.
+    pub async fn cancel_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<bool, Error>
+    where
+        Q: AsRef<str>,
+    {
+        let count = self.cancel_jobs(queue_name, [job_id]).await?;
+        Ok(count == 1)
     }
 
     /// Mark numerous jobs as `cancelled`.
@@ -255,44 +302,59 @@ impl Client {
     /// In a happy path, returns the number of jobs marked as `cancelled`,
     /// where `0` means there are no jobs with these ids in the queue or
     /// no such queue.
-    pub async fn cancel_jobs<Q, I, O>(
-        &self,
-        queue_name: Q,
-        job_ids: I,
-        details: O,
-    ) -> Result<usize, Error>
+    pub async fn cancel_jobs<Q, I>(&self, queue_name: Q, job_ids: I) -> Result<usize, Error>
     where
         Q: AsRef<str>,
         I: IntoIterator<Item = Uuid>,
-        O: Into<serde_json::Value>,
     {
-        self.update_jobs_returning_affected_count(
-            queue_name,
-            job_ids,
-            details,
-            &self.stmt.cancel_jobs,
-        )
-        .await
+        self.update_jobs_returning_affected_count(queue_name, job_ids, None, &self.stmt.cancel_jobs)
+            .await
     }
 
-    async fn update_jobs_returning_affected_count<Q, I, O>(
+    /// Mark a cancelled job (See [`Client::cancel_job`]) as `created` again.
+    ///
+    /// Will call [`Client::resume_jobs`] internally.
+    pub async fn resume_job<Q>(&self, queue_name: Q, job_id: Uuid) -> Result<bool, Error>
+    where
+        Q: AsRef<str>,
+    {
+        let count = self.resume_jobs(queue_name, [job_id]).await?;
+        Ok(count == 1)
+    }
+
+    /// Mark numerous cancelled jobs as `created` again.
+    ///
+    /// In a happy path, returns the number of jobs marked as `created`,
+    /// where `0` means there are no jobs with these ids in the queue or
+    /// no such queue.
+    pub async fn resume_jobs<Q, I>(&self, queue_name: Q, job_ids: I) -> Result<usize, Error>
+    where
+        Q: AsRef<str>,
+        I: IntoIterator<Item = Uuid>,
+    {
+        self.update_jobs_returning_affected_count(queue_name, job_ids, None, &self.stmt.resume_jobs)
+            .await
+    }
+
+    async fn update_jobs_returning_affected_count<Q, I>(
         &self,
         queue_name: Q,
         job_ids: I,
-        details: O,
+        details: Option<serde_json::Value>,
         q: &str,
     ) -> Result<usize, Error>
     where
         Q: AsRef<str>,
         I: IntoIterator<Item = Uuid>,
-        O: Into<serde_json::Value>,
     {
-        let count: (i64,) = sqlx::query_as(q)
+        let q = sqlx::query_as(q)
             .bind(queue_name.as_ref())
-            .bind(job_ids.into_iter().collect::<Vec<Uuid>>())
-            .bind(details.into())
-            .fetch_one(&self.pool)
-            .await?;
+            .bind(job_ids.into_iter().collect::<Vec<Uuid>>());
+        let q = match details {
+            Some(d) => q.bind(d),
+            None => q,
+        };
+        let count: (i64,) = q.fetch_one(&self.pool).await?;
         Ok(count.0 as usize)
     }
 }

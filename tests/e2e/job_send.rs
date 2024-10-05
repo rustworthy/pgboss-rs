@@ -259,7 +259,7 @@ async fn send_job_dlq_named_as_main_queue() {
 
     // let's fail job1
     let ok = c
-        .fail_job(
+        .fail_job_with_details(
             "jobtype",
             fetched_job_1.id,
             json!({"details": "testing..."}),
@@ -283,7 +283,7 @@ async fn send_job_dlq_named_as_main_queue() {
 
     // let's fail job2
     let ok = c
-        .fail_job(
+        .fail_job_with_details(
             "jobtype",
             fetched_job_2.id,
             json!({"details": "testing again..."}),

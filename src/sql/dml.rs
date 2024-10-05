@@ -118,6 +118,22 @@ pub(crate) fn cancel_jobs(schema: &str) -> String {
     )
 }
 
+pub(crate) fn resume_jobs(schema: &str) -> String {
+    format!(
+        r#"
+        WITH results AS (
+            UPDATE {schema}.job
+            SET completed_on = NULL, state = '{0}'::{schema}.job_state
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state = '{1}'::{schema}.job_state      
+            RETURNING 1
+        )
+        SELECT COUNT(*) from results;
+        "#,
+        JobState::Created,
+        JobState::Cancelled,
+    )
+}
+
 pub(crate) fn delete_jobs(schema: &str) -> String {
     format!(
         r#"
