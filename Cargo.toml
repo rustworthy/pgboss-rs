@@ -13,6 +13,7 @@ exclude = [".github", "docker", ".gitignore", "Makefile"]
 
 [features]
 default = []
+binaries = ["dep:clap", "dep:tracing-subscriber"]
 
 [dependencies]
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -27,6 +28,9 @@ sqlx = { version = "=0.8.2", features = [
 ] }
 thiserror = "1.0.63"
 uuid = { version = "1.10.0", features = ["v4", "serde"] }
+clap = { version = "4", features = ["derive"], optional = true }
+tracing-subscriber = { version = "0.3", optional = true }
+tracing = "0.1.40"
 
 [dev-dependencies]
 lazy_static = "1.5.0"
@@ -41,3 +45,8 @@ tokio-test = "0.4.4"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[bin]]
+name = "loadtest"
+path = "src/bin/loadtest.rs"
+required-features = ["binaries"]
