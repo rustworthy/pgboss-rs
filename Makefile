@@ -61,4 +61,5 @@ test/cov:
 
 .PHONY: test/load
 test/load:
+	POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE} \
 	cargo run --release --features binaries --bin loadtest -- $(args)
