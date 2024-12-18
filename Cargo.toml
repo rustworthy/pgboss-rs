@@ -26,7 +26,7 @@ sqlx = { version = "=0.8.2", features = [
     "chrono",
     "uuid",
 ] }
-thiserror = "1.0.63"
+thiserror = "2.0.8"
 tracing = "0.1.40"
 uuid = { version = "1.10.0", features = ["v4", "serde"] }
 
