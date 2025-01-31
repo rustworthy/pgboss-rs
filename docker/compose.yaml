@@ -6,12 +6,12 @@ services:
     environment:
       POSTGRES_USER: username
       POSTGRES_PASSWORD: password
-      POSTGRES_HOST: "127.0.0.1"
-      POSTGRES_DB: "pgboss"
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_DB: pgboss
     ports:
-      - "127.0.0.1:5444:5432"
+      - "${DATABASE_HOST}:${DATABASE_PORT}:5432"
     command:
       - "postgres"
       - "-c"
       - "config_file=/var/lib/postgresql/postgresql.conf"
-    container_name: "pgboss"
+    container_name: pgboss
