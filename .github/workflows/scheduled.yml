@@ -28,11 +28,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: ensure PostgreSQL service
-        run: |
-          docker compose -f docker/compose.yaml up -d --build
-          docker ps
-          sleep 10
-          docker compose -f docker/compose.yaml logs postgres --tail 10
+        run: make postgres
       - name: run e2e tests
         env:
           POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
@@ -61,11 +57,7 @@ jobs:
         run: cargo update
       - name: ensure PostgreSQL service
         if: hashFiles('Cargo.lock') != ''
-        run: |
-          docker compose -f docker/compose.yaml up -d --build
-          docker ps
-          sleep 10
-          docker compose -f docker/compose.yaml logs postgres --tail 10
+        run: make postgres
       - name: run e2e tests
         if: hashFiles('Cargo.lock') != ''
         env:

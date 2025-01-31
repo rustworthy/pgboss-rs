@@ -20,21 +20,6 @@ jobs:
   required:
     runs-on: ubuntu-latest
     name: ubuntu / ${{ matrix.toolchain }}
-    services:
-      postgres:
-        image: postgres:16.4
-        env:
-          POSTGRES_USER: username
-          POSTGRES_PASSWORD: password
-          POSTGRES_HOST: "127.0.0.1"
-          POSTGRES_DB: "pgboss"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 127.0.0.1:5444:5432
     strategy:
       matrix:
         # run on stable and beta to ensure that tests won't break on the next version of the rust
@@ -52,6 +37,8 @@ jobs:
         # enable this ci template to run regardless of whether the lockfile is checked in or not
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
+      - name: ensure PostgreSQL service
+        run: make postgres
       - name: run e2e tests
         env:
           POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
@@ -86,7 +73,7 @@ jobs:
     name: ubuntu / stable / minimal-versions
     services:
       postgres:
-        image: postgres:16.4
+        image: postgres:17
         env:
           POSTGRES_USER: username
           POSTGRES_PASSWORD: password
@@ -120,7 +107,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} / stable
     # Container actions are only supported on Linux runners as of August 24, 2024
-    # So we are only building the library, not running e2e tests.
+    # So we are only building the library, not running e2e tests for now.
+    # TODO: run postgres server on the background on macos and windows
     #
     #services:
     #  postgres:
@@ -200,11 +188,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: ensure PostgeSQL service
-        run: |
-          docker compose -f docker/compose.yaml up -d --build
-          docker ps
-          sleep 10
-          docker compose -f docker/compose.yaml logs postgres --tail 10
+        run: make postgres
       - name: cargo llvm-cov
         env:
           POSTGRES_URL: postgres://username:password@127.0.0.1:5444/pgboss
