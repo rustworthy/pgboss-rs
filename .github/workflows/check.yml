@@ -117,10 +117,12 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     strategy:
       matrix:
-        # SQLx is being tested against the latest rustc ("1.80.1" as of August 24, 2024),
-        # so when updating this dependency there is always a chance we will need to bump MSRV.
+        # SQLx is being tested against the latest rustc, so when updating this dependency
+        # there is always a chance we will need to bump MSRV.
+        #
         # As of August 24, 2024, our crate will build with rustc 1.74
-        msrv: ["1.74.0"]
+        # As of February 1, 2025, the crate will build with rustc 1.81 due to home@0.5.11 crate
+        msrv: ["1.81.0"]
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
