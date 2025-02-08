@@ -1,4 +1,4 @@
-use crate::{job::JobState, sql::locked};
+use crate::job::JobState;
 use askama::Template;
 
 pub(crate) fn check_if_app_installed(schema: &str) -> String {
@@ -305,23 +305,6 @@ pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
         result_destination: None,
     }
     .to_string()
-}
-
-pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
-    locked(
-        schema,
-        vec![FailJobsTemplate {
-        schema,
-        where_clause: format!(
-            "WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()",
-            JobState::Active,
-            schema
-        ),
-        output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
-        result_destination: None,
-    }
-    .to_string()],
-    )
 }
 
 pub(crate) fn complete_jobs(schema: &str) -> String {

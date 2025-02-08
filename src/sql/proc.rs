@@ -2,7 +2,6 @@ use crate::job::JobState;
 use crate::queue::QueuePolicy;
 
 use super::dml::FailJobsTemplate;
-use super::locked;
 
 pub(super) fn create_create_queue_function(schema: &str) -> String {
     format!(
@@ -188,27 +187,33 @@ pub(crate) fn create_job(schema: &str) -> String {
 }
 
 pub(crate) fn create_fail_job_by_timeout_procedure(schema: &str) -> String {
+    let fail_returning_failed_count = FailJobsTemplate {
+        schema,
+        where_clause: format!(
+            "WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()",
+            JobState::Active,
+            schema
+        ),
+        output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
+        result_destination: Some("failed_count"),
+    }
+    .to_string();
+    // https://www.postgresql.org/docs/current/plpgsql-transactions.html
     format!(
         r#"
-        CREATE OR REPLACE PROCEDURE {schema}.fail_active_jobs_by_timeout(OUT failed_count INTEGER)
-        AS $$
-        DECLARE
+        CREATE OR REPLACE PROCEDURE {schema}.fail_active_jobs_by_timeout(OUT failed_count BIGINT) AS $$
         BEGIN
-        {}
+            COMMIT;
+            SET LOCAL lock_timeout = '30s';
+            SET LOCAL idle_in_transaction_session_timeout = '30s';
+            {fail_returning_failed_count};
+            COMMIT;
         END;
-        $$
-        LANGUAGE plpgsql;
+        $$ LANGUAGE plpgsql;
         "#,
-        locked(
-            schema,
-            vec![
-                FailJobsTemplate {
-                    schema: schema,
-                    where_clause: format!("WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()", JobState::Active, schema),
-                    output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
-                    result_destination: Some("failed_count")
-                }.to_string()
-            ],
-        )
     )
+}
+
+pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
+    format!("CALL {}.fail_active_jobs_by_timeout(NULL);", schema)
 }

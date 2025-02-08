@@ -1,7 +1,7 @@
 mod connect_ops;
 mod job_ops;
+pub mod maintain_ops;
 mod queue_ops;
-mod maintain_ops;
 
 use super::{builder::ClientBuilder, opts, Client};
 

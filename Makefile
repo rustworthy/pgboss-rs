@@ -31,6 +31,10 @@ postgres:
 postgres/start:
 	docker start ${POSTGRES_CONTAINER_NAME}
 
+.PHONY: postgres/logs
+postgres/logs:
+	docker logs -f ${POSTGRES_CONTAINER_NAME}
+
 .PHONY: postgres/psql
 postgres/psql:
 	docker exec -it pgboss sh -c "psql -U username pgboss"

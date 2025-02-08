@@ -6,6 +6,7 @@ mod opts;
 mod public;
 
 pub use builder::ClientBuilder;
+pub use public::maintain_ops::MaintenanceStats;
 
 #[derive(Debug, Clone)]
 struct Statements {
@@ -32,7 +33,7 @@ impl Statements {
             delete_jobs: sql::dml::delete_jobs(name),
             create_job: sql::proc::create_job(name),
             fail_jobs_by_jids: sql::dml::fail_jobs_by_jids(name),
-            fail_jobs_by_timeout: sql::dml::fail_jobs_by_timeout(name),
+            fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
             cancel_jobs: sql::dml::cancel_jobs(name),
             resume_jobs: sql::dml::resume_jobs(name),
             complete_jobs: sql::dml::complete_jobs(name),

@@ -59,7 +59,7 @@ mod queue;
 mod sql;
 mod utils;
 
-pub use client::{Client, ClientBuilder};
+pub use client::{Client, ClientBuilder, MaintenanceStats};
 pub use error::Error;
 pub use job::{Job, JobBuilder, JobDetails, JobState};
 pub use queue::{Queue, QueueBuilder, QueueDetails, QueuePolicy};

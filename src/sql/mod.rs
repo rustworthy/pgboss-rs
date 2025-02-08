@@ -47,6 +47,7 @@ pub(crate) fn install_app(schema: &str) -> String {
             proc::create_create_queue_function(schema),
             proc::create_delete_queue_function(schema),
             proc::create_create_job_function(schema),
+            proc::create_fail_job_by_timeout_procedure(schema),
             // ...
             dml::insert_version(schema, crate::CURRENT_PGBOSS_APP_VERSION),
         ],
@@ -60,6 +61,7 @@ pub(crate) fn install_functions(schema: &str) -> String {
             proc::create_create_queue_function(schema),
             proc::create_delete_queue_function(schema),
             proc::create_create_job_function(schema),
+            proc::create_fail_job_by_timeout_procedure(schema),
         ],
     )
 }

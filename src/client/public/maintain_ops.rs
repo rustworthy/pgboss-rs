@@ -1,9 +1,11 @@
 use crate::{Client, Error};
 use serde::Serialize;
 
+/// Results of maintenance round.
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct MaintenanceStats {
+    /// Number of jobs that were marked expired.
     pub expired: u32,
 }
 
