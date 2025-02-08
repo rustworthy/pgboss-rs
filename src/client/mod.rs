@@ -32,7 +32,7 @@ impl Statements {
             get_job_info: sql::dml::get_job_info(name),
             delete_jobs: sql::dml::delete_jobs(name),
             create_job: sql::proc::create_job(name),
-            fail_jobs_by_jids: sql::dml::fail_jobs_by_jids(name),
+            fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
             fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
             cancel_jobs: sql::dml::cancel_jobs(name),
             resume_jobs: sql::dml::resume_jobs(name),

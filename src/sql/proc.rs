@@ -1,7 +1,6 @@
 use crate::job::JobState;
 use crate::queue::QueuePolicy;
-
-use super::dml::FailJobsTemplate;
+use askama::Template;
 
 pub(super) fn create_create_queue_function(schema: &str) -> String {
     format!(
@@ -184,6 +183,181 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
 // (1 row)
 pub(crate) fn create_job(schema: &str) -> String {
     format!("SELECT {schema}.create_job($1, $2, $3, $4);")
+}
+
+#[derive(Template)]
+#[template(
+    source = "
+        WITH deleted_jobs AS (
+            DELETE FROM {{ schema }}.job
+            {{ where_clause }}
+            RETURNING *
+        ),
+        retried_jobs AS (
+            INSERT INTO {{ schema }}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                output
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                CASE
+                    WHEN retry_count < retry_limit THEN '{{ JobState::Retry }}'::{{ schema }}.job_state
+                    ELSE '{{ JobState::Failed }}'::{{ schema }}.job_state
+                END as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                CASE
+                    WHEN retry_count = retry_limit THEN start_after
+                    WHEN NOT retry_backoff THEN now() + retry_delay * interval '1'
+                    ELSE now() + (
+                        retry_delay * 2 ^ LEAST(16, retry_count + 1) / 2 +
+                        retry_delay * 2 ^ LEAST(16, retry_count + 1) / 2 * random()
+                    ) * interval '1'
+                END as start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                CASE
+                    WHEN retry_count < retry_limit THEN NULL
+                    ELSE now()
+                END as completed_on,
+                keep_until,
+                dead_letter,
+                policy,        
+                {{ output }}
+            FROM deleted_jobs
+            ON CONFLICT DO NOTHING
+            RETURNING *
+        ),
+        failed_jobs as (
+            INSERT INTO {{ schema }}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                output
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                '{{ JobState::Failed }}'::{{ schema }}.job_state as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_in,
+                created_on,
+                now() as completed_on,
+                keep_until,
+                dead_letter,
+                policy,
+                {{ output }}
+            FROM deleted_jobs
+            WHERE id NOT IN (SELECT id from retried_jobs)
+            RETURNING *
+        ),
+        results as (
+            SELECT * FROM retried_jobs
+            UNION ALL
+            SELECT * FROM failed_jobs
+        ),
+        dlq_jobs as (
+            INSERT INTO {{ schema }}.job (name, data, output, retry_limit, keep_until)
+            SELECT dead_letter, data, output, retry_limit, keep_until + (keep_until - start_after)
+            FROM results
+            WHERE state = '{{ JobState::Failed }}'::{{ schema }}.job_state
+            AND dead_letter IS NOT NULL
+            AND NOT name = dead_letter
+        )
+        {% if let Some(destination) = result_destination %}
+        SELECT COUNT(*) FROM results INTO {{ destination }}
+        {% else %}
+        SELECT COUNT(*) FROM results
+        {% endif %}
+        ",
+    ext = "txt"
+)]
+pub(crate) struct FailJobsTemplate<'a> {
+    pub schema: &'a str,
+    pub where_clause: String,
+    pub output: &'static str,
+    pub result_destination: Option<&'static str>,
+}
+
+pub(crate) fn create_fail_job_by_jids_function(schema: &str) -> String {
+    format!(
+        r#"
+        CREATE OR REPLACE FUNCTION {schema}.fail_jobs_by_jids(qname TEXT, jids UUID[], details JSONB, OUT failed_count BIGINT) AS $$
+        BEGIN
+            {};
+        END;
+        $$ LANGUAGE plpgsql;
+        "#,
+        FailJobsTemplate {
+            schema,
+            where_clause: format!(
+                "WHERE name = qname AND id IN (SELECT UNNEST(jids)) AND state < '{}'::{}.job_state",
+                JobState::Completed,
+                schema
+            ),
+            output: "details",
+            result_destination: Some("failed_count"),
+        }
+        .to_string()
+    )
+}
+
+pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
+    format!(
+        "SELECT {}.fail_jobs_by_jids($1::TEXT, $2::UUID[], $3::JSONB);",
+        schema
+    )
 }
 
 pub(crate) fn create_fail_job_by_timeout_procedure(schema: &str) -> String {
