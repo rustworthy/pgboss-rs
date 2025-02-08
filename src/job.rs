@@ -201,7 +201,7 @@ pub struct JobDetails {
     /// Execution timeout.
     ///
     /// Specifies for how long this job may be in `active` state before
-    /// it is failed because of expiration
+    /// it is failed because of expiration.
     pub expire_in: Duration,
 
     /// This job's [`JobState`].
@@ -261,7 +261,7 @@ pub struct JobDetails {
     /// Specifies for how long this job may be in `created` or `retry` state before
     /// it is archived.
     ///
-    /// Defalts to two weeks
+    /// Defalts to two weeks.
     pub keep_until: DateTime<Utc>,
 
     /// Job's output, if any.

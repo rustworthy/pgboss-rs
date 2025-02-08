@@ -301,6 +301,19 @@ pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
     .to_string()
 }
 
+pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
+    FailJobsTemplate {
+        schema,
+        where_clause: format!(
+            "WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()",
+            JobState::Active,
+            schema
+        ),
+        output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
+    }
+    .to_string()
+}
+
 pub(crate) fn complete_jobs(schema: &str) -> String {
     format!(
         r#"
