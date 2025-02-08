@@ -1,4 +1,5 @@
 use crate::job::JobState;
+use askama::Template;
 
 pub(crate) fn check_if_app_installed(schema: &str) -> String {
     format!(
@@ -147,16 +148,16 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
     )
 }
 
-pub(crate) fn fail_jobs(schema: &str) -> String {
-    format!(
-        r#"
+#[derive(Template)]
+#[template(
+    source = "
         WITH deleted_jobs AS (
-            DELETE FROM {schema}.job
-            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{2}'::{schema}.job_state
+            DELETE FROM {{ schema }}.job
+            {{ where_clause }}
             RETURNING *
         ),
         retried_jobs AS (
-            INSERT INTO {schema}.job (
+            INSERT INTO {{ schema }}.job (
                 id,
                 name,
                 priority,
@@ -184,8 +185,8 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
                 priority,
                 data,
                 CASE
-                    WHEN retry_count < retry_limit THEN '{0}'::{schema}.job_state
-                    ELSE '{1}'::{schema}.job_state
+                    WHEN retry_count < retry_limit THEN '{{ JobState::Retry }}'::{{ schema }}.job_state
+                    ELSE '{{ JobState::Failed }}'::{{ schema }}.job_state
                 END as state,
                 retry_limit,
                 retry_count,
@@ -217,7 +218,7 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
             RETURNING *
         ),
         failed_jobs as (
-            INSERT INTO {schema}.job (
+            INSERT INTO {{ schema }}.job (
                 id,
                 name,
                 priority,
@@ -244,7 +245,7 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
                 name,
                 priority,
                 data,
-                '{1}'::{schema}.job_state as state,
+                '{{ JobState::Failed }}'::{{ schema }}.job_state as state,
                 retry_limit,
                 retry_count,
                 retry_delay,
@@ -259,7 +260,7 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
                 keep_until,
                 dead_letter,
                 policy,
-                $3::jsonb
+                {{ output }}
             FROM deleted_jobs
             WHERE id NOT IN (SELECT id from retried_jobs)
             RETURNING *
@@ -270,16 +271,34 @@ pub(crate) fn fail_jobs(schema: &str) -> String {
             SELECT * FROM failed_jobs
         ),
         dlq_jobs as (
-            INSERT INTO {schema}.job (name, data, output, retry_limit, keep_until)
+            INSERT INTO {{ schema }}.job (name, data, output, retry_limit, keep_until)
             SELECT dead_letter, data, output, retry_limit, keep_until + (keep_until - start_after)
-            FROM results WHERE state = '{1}'::{schema}.job_state AND dead_letter IS NOT NULL AND NOT name = dead_letter
+            FROM results
+            WHERE state = '{{ JobState::Failed }}'::{{ schema }}.job_state
+            AND dead_letter IS NOT NULL
+            AND NOT name = dead_letter
         )
         SELECT COUNT(*) FROM results
-        "#,
-        JobState::Retry,     // 0
-        JobState::Failed,    // 1
-        JobState::Completed, // 2
-    )
+        ",
+    ext = "txt"
+)]
+pub(crate) struct FailJobsTemplate<'a> {
+    schema: &'a str,
+    where_clause: String,
+    output: &'static str,
+}
+
+pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
+    FailJobsTemplate {
+        schema,
+        where_clause: format!(
+            "WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{}'::{}.job_state",
+            JobState::Completed,
+            schema
+        ),
+        output: "$3::jsonb",
+    }
+    .to_string()
 }
 
 pub(crate) fn complete_jobs(schema: &str) -> String {
@@ -328,5 +347,13 @@ pub(crate) fn get_job_info(schema: &str) -> String {
         FROM {schema}.job
         WHERE name = $1 and id = $2;
         "#,
+    )
+}
+
+// -------------------------- MAINTENANCE -------------------------------------
+pub(crate) fn _g(schema: &str) -> String {
+    format!(
+        "UPDATE {schema}.job WHERE status = '{}' AND creaated_on + expire_in < now()",
+        JobState::Active
     )
 }

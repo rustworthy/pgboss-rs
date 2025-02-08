@@ -181,7 +181,7 @@ impl Client {
                 queue_name,
                 [job_id],
                 Some(json!({})),
-                &self.stmt.fail_jobs,
+                &self.stmt.fail_jobs_by_jids,
             )
             .await?;
         Ok(count == 1)
@@ -224,7 +224,7 @@ impl Client {
             queue_name,
             job_ids,
             Some(details.into()),
-            &self.stmt.fail_jobs,
+            &self.stmt.fail_jobs_by_jids,
         )
         .await
     }
@@ -239,7 +239,7 @@ impl Client {
             queue_name,
             job_ids,
             Some(json!({})),
-            &self.stmt.fail_jobs,
+            &self.stmt.fail_jobs_by_jids,
         )
         .await
     }
