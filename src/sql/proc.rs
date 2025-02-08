@@ -1,6 +1,9 @@
 use crate::job::JobState;
 use crate::queue::QueuePolicy;
 
+use super::dml::FailJobsTemplate;
+use super::locked;
+
 pub(super) fn create_create_queue_function(schema: &str) -> String {
     format!(
         r#"
@@ -75,7 +78,6 @@ pub(crate) fn create_queue(schema: &str) -> String {
 pub(super) fn create_delete_queue_function(schema: &str) -> String {
     format!(
         r#"
-
         CREATE OR REPLACE FUNCTION {schema}.delete_queue(queue_name text)
         RETURNS VOID AS
         $$
@@ -183,4 +185,30 @@ pub(crate) fn create_create_job_function(schema: &str) -> String {
 // (1 row)
 pub(crate) fn create_job(schema: &str) -> String {
     format!("SELECT {schema}.create_job($1, $2, $3, $4);")
+}
+
+pub(crate) fn create_fail_job_by_timeout_procedure(schema: &str) -> String {
+    format!(
+        r#"
+        CREATE OR REPLACE PROCEDURE {schema}.fail_active_jobs_by_timeout(OUT failed_count INTEGER)
+        AS $$
+        DECLARE
+        BEGIN
+        {}
+        END;
+        $$
+        LANGUAGE plpgsql;
+        "#,
+        locked(
+            schema,
+            vec![
+                FailJobsTemplate {
+                    schema: schema,
+                    where_clause: format!("WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()", JobState::Active, schema),
+                    output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
+                    result_destination: Some("failed_count")
+                }.to_string()
+            ],
+        )
+    )
 }

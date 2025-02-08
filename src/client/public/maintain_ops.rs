@@ -16,7 +16,6 @@ impl Client {
         let expired_count: (i64,) = sqlx::query_as(&self.stmt.fail_jobs_by_timeout)
             .fetch_one(&self.pool)
             .await?;
-
         Ok(MaintenanceStats {
             expired: expired_count.0 as u32,
         })

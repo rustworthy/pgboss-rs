@@ -1,4 +1,4 @@
-use crate::job::JobState;
+use crate::{job::JobState, sql::locked};
 use askama::Template;
 
 pub(crate) fn check_if_app_installed(schema: &str) -> String {
@@ -212,7 +212,7 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
                 keep_until,
                 dead_letter,
                 policy,        
-                $3::jsonb
+                {{ output }}
             FROM deleted_jobs
             ON CONFLICT DO NOTHING
             RETURNING *
@@ -278,14 +278,19 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
             AND dead_letter IS NOT NULL
             AND NOT name = dead_letter
         )
+        {% if let Some(destination) = result_destination %}
+        SELECT COUNT(*) FROM results INTO {{ destination }}
+        {% else %}
         SELECT COUNT(*) FROM results
+        {% endif %}
         ",
     ext = "txt"
 )]
 pub(crate) struct FailJobsTemplate<'a> {
-    schema: &'a str,
-    where_clause: String,
-    output: &'static str,
+    pub schema: &'a str,
+    pub where_clause: String,
+    pub output: &'static str,
+    pub result_destination: Option<&'static str>,
 }
 
 pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
@@ -297,12 +302,15 @@ pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
             schema
         ),
         output: "$3::jsonb",
+        result_destination: None,
     }
     .to_string()
 }
 
 pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
-    FailJobsTemplate {
+    locked(
+        schema,
+        vec![FailJobsTemplate {
         schema,
         where_clause: format!(
             "WHERE state = '{}'::{}.job_state AND (started_on + expire_in) < now()",
@@ -310,8 +318,10 @@ pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
             schema
         ),
         output: r#"'{ "value": { "message": "job failed by timeout in active state" } }'::jsonb"#,
+        result_destination: None,
     }
-    .to_string()
+    .to_string()],
+    )
 }
 
 pub(crate) fn complete_jobs(schema: &str) -> String {
