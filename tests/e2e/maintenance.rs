@@ -64,6 +64,7 @@ async fn force_maintain_check_expiration() {
     // let's force maintenance
     let maintain_stats = c.force_maintain().await.expect("no errors");
     assert_eq!(maintain_stats.expired, 1);
+    assert_eq!(maintain_stats.archived, 0);
     // just a sanity check
     assert_eq!(
         c.get_job(qname, jid)

@@ -183,7 +183,7 @@ impl<'a> QueueBuilder<'a> {
 
     /// For how long this job should be retained in the system.
     ///
-    /// Should be greater than or eqaul to 1 second, or simply unset (default)
+    /// Should be greater than or equal to 1 second, or simply unset (default)
     pub fn retain_for(mut self, val: Duration) -> Self {
         self.retain_for = Some(val);
         self

@@ -391,3 +391,84 @@ pub(crate) fn create_fail_job_by_timeout_procedure(schema: &str) -> String {
 pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
     format!("CALL {}.fail_active_jobs_by_timeout(NULL);", schema)
 }
+
+pub(crate) fn create_archive_procedure(schema: &str) -> String {
+    format!(
+        r#"
+        CREATE OR REPLACE PROCEDURE {schema}.archive_jobs(completed_interval INTERVAL, failed_interval INTERVAL, OUT archived_count BIGINT) AS $$
+        DECLARE
+            archived_jids UUID[];
+        BEGIN
+            COMMIT;
+            SET LOCAL lock_timeout = '30s';
+            SET LOCAL idle_in_transaction_session_timeout = '30s';
+            WITH archived_jobs AS (
+                DELETE FROM {schema}.job
+                WHERE (state <> '{0}' AND completed_on < (now() - completed_interval))
+                OR (state = '{0}' AND completed_on < (now() - failed_interval))
+                OR (state < '{1}' AND keep_until < now())
+                RETURNING *
+            )
+            INSERT INTO {schema}.archive (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff, 
+                start_after,
+                started_on, 
+                singleton_key,
+                singleton_on, 
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter, 
+                policy,
+                output
+            )
+            SELECT 
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff, 
+                start_after,
+                started_on, 
+                singleton_key,
+                singleton_on, 
+                expire_in,
+                created_on,
+                completed_on,
+                keep_until,
+                dead_letter, 
+                policy,
+                output
+            FROM archived_jobs
+            ON CONFLICT DO NOTHING
+            RETURNING id INTO archived_jids;
+            SELECT COUNT(archived_jids) INTO archived_count;
+            COMMIT;
+        END;
+        $$ LANGUAGE plpgsql;
+        "#,
+        JobState::Failed, // 0
+        JobState::Active, // 1
+    )
+}
+
+pub(crate) fn archive_jobs(schema: &str) -> String {
+    // https://timgit.github.io/pg-boss/#/./api/constructor
+    format!(
+        "CALL {}.archive_jobs('12 hours'::interval, '3 days'::interval, NULL);",
+        schema
+    )
+}

@@ -5,8 +5,11 @@ use serde::Serialize;
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct MaintenanceStats {
-    /// Number of jobs that were marked expired.
+    /// Number of jobs that were timed out.
     pub expired: u32,
+
+    /// Number of jobs that were archived.
+    pub archived: u32,
 }
 
 impl Client {
@@ -15,11 +18,15 @@ impl Client {
     /// This will force operations that are normally performed on a schedule,
     /// such as expiration, archival, and dropping, returning [`MaintenanceStats`].
     pub async fn force_maintain(&self) -> Result<MaintenanceStats, Error> {
-        let expired_count: (i64,) = sqlx::query_as(&self.stmt.fail_jobs_by_timeout)
+        let (expired_count,): (i64,) = sqlx::query_as(&self.stmt.fail_jobs_by_timeout)
+            .fetch_one(&self.pool)
+            .await?;
+        let (archived_count,): (i64,) = sqlx::query_as(&self.stmt.archive_jobs)
             .fetch_one(&self.pool)
             .await?;
         Ok(MaintenanceStats {
-            expired: expired_count.0 as u32,
+            expired: expired_count as u32,
+            archived: archived_count as u32,
         })
     }
 }
