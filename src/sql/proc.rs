@@ -349,7 +349,6 @@ pub(crate) fn create_fail_job_by_jids_function(schema: &str) -> String {
             output: "details",
             result_destination: Some("failed_count"),
         }
-        .to_string()
     )
 }
 

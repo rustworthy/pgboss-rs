@@ -57,3 +57,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 name = "loadtest"
 path = "src/bin/loadtest.rs"
 required-features = ["binaries"]
+
+# to make -Zminimal-versions work
+[target.'cfg(any())'.dependencies]
+mime = "0.3.9"
