@@ -2,3 +2,4 @@
 /misc
 lcov.info
 .vscode
+.env

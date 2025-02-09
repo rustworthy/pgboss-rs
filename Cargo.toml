@@ -1,6 +1,6 @@
 [package]
 name = "pgboss"
-version = "0.1.0-rc2"
+version = "0.1.0-rc3"
 edition = "2021"
 authors = ["Pavel Mikhalkevich <pavel@mikhalkevich.com>"]
 license = "MIT OR Apache-2.0"
