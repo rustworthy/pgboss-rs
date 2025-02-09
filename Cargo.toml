@@ -1,8 +1,8 @@
 [package]
 name = "pgboss"
-version = "0.1.0-rc1"
+version = "0.1.0-rc2"
 edition = "2021"
-authors = ["Pavel Mikhalkevich <paul.michelle.prod@gmail.com>"]
+authors = ["Pavel Mikhalkevich <pavel@mikhalkevich.com>"]
 license = "MIT OR Apache-2.0"
 description = "Rust implementation of PgBoss job queueing service"
 repository = "https://github.com/rustworthy/pgboss-rs.git"
