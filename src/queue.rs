@@ -1,7 +1,7 @@
 use super::utils;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, FromRow, Row};
+use sqlx::{FromRow, Row, postgres::PgRow};
 use std::time::Duration;
 
 /// Policy to apply to the jobs in this queue.

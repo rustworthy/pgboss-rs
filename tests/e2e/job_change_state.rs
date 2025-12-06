@@ -16,10 +16,11 @@ async fn complete_job() {
 
     // mark as completed
     let before_completed = Utc::now();
-    assert!(c
-        .complete_job(qname, id, json!({"result": "success!"}))
-        .await
-        .unwrap());
+    assert!(
+        c.complete_job(qname, id, json!({"result": "success!"}))
+            .await
+            .unwrap()
+    );
 
     // job transitioned from `active` to `completed` and so the qeueu was drained
     assert!(c.fetch_job(qname).await.unwrap().is_none());

@@ -1,7 +1,7 @@
 use super::Client;
-use crate::queue::Queue;
 use crate::Error;
 use crate::QueueDetails;
+use crate::queue::Queue;
 use sqlx::types::Json;
 use std::borrow::Borrow;
 

@@ -1,7 +1,7 @@
-use super::opts;
 use super::Client;
-use crate::utils;
+use super::opts;
 use crate::Error;
+use crate::utils;
 use sqlx::postgres::PgPool;
 
 #[cfg(doc)]

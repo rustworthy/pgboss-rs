@@ -3,7 +3,7 @@ mod job_ops;
 pub mod maintain_ops;
 mod queue_ops;
 
-use super::{builder::ClientBuilder, opts, Client};
+use super::{Client, builder::ClientBuilder, opts};
 
 impl Client {
     /// Create an instance of [`ClientBuilder`]

@@ -1,7 +1,7 @@
 use super::Client;
-use crate::job::{Job, JobDetails};
 use crate::Error;
 use crate::JobOptions;
+use crate::job::{Job, JobDetails};
 use serde_json::json;
 use sqlx::types::Json;
 use std::borrow::Borrow;

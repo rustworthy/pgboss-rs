@@ -1,7 +1,7 @@
 use clap::Parser;
 use pgboss::{Client, Error};
 use serde_json::json;
-use std::sync::{atomic, Arc};
+use std::sync::{Arc, atomic};
 
 lazy_static::lazy_static! {
     static ref SCHEMA_NAME: String = format!("schema_{}", uuid::Uuid::new_v4().as_simple());
@@ -26,7 +26,12 @@ async fn main() {
         .init();
 
     let cli = Cli::parse();
-    log::info!("Running a loadtest with the following settings: jobs_count={}, threads_count={}. Schema name will be {}", cli.jobs_count, cli.threads_count, SCHEMA_NAME.as_str());
+    log::info!(
+        "Running a loadtest with the following settings: jobs_count={}, threads_count={}. Schema name will be {}",
+        cli.jobs_count,
+        cli.threads_count,
+        SCHEMA_NAME.as_str()
+    );
 
     let jobs_sent = Arc::new(atomic::AtomicUsize::new(0));
     let jobs_fetched = Arc::new(atomic::AtomicUsize::new(0));

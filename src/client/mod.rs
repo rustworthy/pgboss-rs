@@ -1,4 +1,4 @@
-use crate::{sql, App};
+use crate::{App, sql};
 use sqlx::postgres::PgPool;
 
 mod builder;

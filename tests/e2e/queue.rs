@@ -215,29 +215,37 @@ async fn delete_queue() {
 
     client.create_standard_queue("job_type_2").await.unwrap();
 
-    assert!(client
-        .get_queue("job_type_1")
-        .await
-        .expect("no error")
-        .is_some());
+    assert!(
+        client
+            .get_queue("job_type_1")
+            .await
+            .expect("no error")
+            .is_some()
+    );
 
-    assert!(client
-        .get_queue("job_type_2")
-        .await
-        .expect("no error")
-        .is_some());
+    assert!(
+        client
+            .get_queue("job_type_2")
+            .await
+            .expect("no error")
+            .is_some()
+    );
 
     client.delete_queue("job_type_1").await.unwrap();
 
-    assert!(client
-        .get_queue("job_type_1")
-        .await
-        .expect("no error")
-        .is_none()); // NB
+    assert!(
+        client
+            .get_queue("job_type_1")
+            .await
+            .expect("no error")
+            .is_none()
+    ); // NB
 
-    assert!(client
-        .get_queue("job_type_2")
-        .await
-        .expect("no error")
-        .is_some());
+    assert!(
+        client
+            .get_queue("job_type_2")
+            .await
+            .expect("no error")
+            .is_some()
+    );
 }
