@@ -120,10 +120,10 @@ jobs:
         # SQLx is being tested against the latest rustc, so when updating this dependency
         # there is always a chance we will need to bump MSRV.
         #
-        # August 24, 2024: our crate will build with rustc 1.74
-        # February 1, 2025: the crate will build with rustc 1.81 due to home@0.5.11 crate
-        # December 6, 2025, the crate will build with rustc 1.83 due to askama@0.14.0 crate
-        msrv: ["1.83.0"]
+        # Aug 24, 2024: rustc 1.74
+        # Feb 1,  2025: rustc 1.81 due to home@0.5.11
+        # Dec 6,  2025: rustc 1.88 due to home@0.5.12 (dep of sqlx-postgres@0.8.6)
+        msrv: ["1.88.0"]
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v6

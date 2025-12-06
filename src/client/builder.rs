@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPool;
 
-use super::{opts, Client};
-use crate::{utils, Error};
+use super::{Client, opts};
+use crate::{Error, utils};
 
 /// Builder for [`Client`].
 #[derive(Debug, Clone)]

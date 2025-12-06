@@ -222,7 +222,10 @@ async fn send_jobs_throttled() {
     let id1 = c.send_job(&job1).await.expect("no error");
     let err = c.send_job(&job2).await.unwrap_err();
     if let Error::Throttled { msg } = err {
-        assert_eq!(msg, "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'");
+        assert_eq!(
+            msg,
+            "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'"
+        );
     } else {
         unreachable!()
     }

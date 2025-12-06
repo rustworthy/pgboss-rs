@@ -1,6 +1,6 @@
 use crate::Error;
 use serde::Serializer;
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
 
 pub(crate) async fn create_pool(url: Option<&str>) -> Result<PgPool, Error> {
