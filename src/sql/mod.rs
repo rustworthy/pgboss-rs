@@ -10,8 +10,8 @@ where
     format!(
         "
         BEGIN;
-        SET LOCAL lock_timeout = '30s';
-        SET LOCAL idle_in_transaction_session_timeout = '30s';
+        SET LOCAL lock_timeout = 30000;
+        SET LOCAL idle_in_transaction_session_timeout = 30000;
         SELECT pg_advisory_xact_lock(('x' || encode(sha224((current_database() || '.pgboss.{schema}')::bytea), 'hex'))::bit(64)::bigint);
         {};
         COMMIT;
@@ -46,9 +46,8 @@ pub(crate) fn install_app(schema: &str) -> String {
             ddl::create_subscription_table(schema),
             ddl::create_job_table(schema),
             ddl::create_job_common_table(schema),
-            // ...
-            proc::create_create_queue_function(schema),
-            proc::create_delete_queue_function(schema),
+            ddl::proc::create_create_queue_function(schema),
+            ddl::proc::create_delete_queue_function(schema),
             // ...
             proc::create_fail_job_by_jids_function(schema),
             proc::create_fail_job_by_timeout_procedure(schema),

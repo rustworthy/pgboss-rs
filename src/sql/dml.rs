@@ -28,7 +28,8 @@ pub(crate) fn get_queue(schema: &str) -> String {
             retry_delay,
             retry_backoff,
             expire_seconds,
-            retention_minutes,
+            retention_seconds,
+            deletion_seconds,
             dead_letter,
             created_on as created_at,
             updated_on as updated_at
@@ -48,7 +49,8 @@ pub(crate) fn get_queues(schema: &str) -> String {
             retry_delay,
             retry_backoff,
             expire_seconds,
-            retention_minutes,
+            retention_seconds,
+            deletion_seconds,
             dead_letter,
             created_on as created_at,
             updated_on as updated_at
@@ -259,6 +261,14 @@ pub(crate) fn get_job_info(schema: &str) -> String {
         WHERE name = $1 and id = $2;
         "#,
     )
+}
+
+pub(crate) fn create_queue(schema: &str) -> String {
+    format!("SELECT {schema}.create_queue($1, $2);")
+}
+
+pub(crate) fn delete_queue(schema: &str) -> String {
+    format!("SELECT {schema}.delete_queue($1);")
 }
 
 // -------------------------- MAINTENANCE -------------------------------------

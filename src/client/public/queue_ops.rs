@@ -9,14 +9,14 @@ impl Client {
     /// Registers a customized queue in the database.
     ///
     /// This operation will _not_ fail if the queue already exists.
-    pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), Error>
+    pub async fn create_queue<'a, Q>(&self, queue: Q) -> Result<(), Error>
     where
         Q: Borrow<Queue<'a>>,
     {
-        let q_opts = opts.borrow();
+        let q = queue.borrow();
         Ok(sqlx::query(&self.stmt.create_queue)
-            .bind(q_opts.name)
-            .bind(Json(q_opts))
+            .bind(q.name)
+            .bind(Json(q.opts()))
             .execute(&self.pool)
             .await
             .map(|_| ())?)

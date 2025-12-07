@@ -1,4 +1,5 @@
 use crate::{App, sql};
+use log::info;
 use sqlx::postgres::PgPool;
 
 mod builder;
@@ -37,12 +38,11 @@ impl Statements {
             get_queue: sql::dml::get_queue(name),
             get_queues: sql::dml::get_queues(name),
             create_job: sql::dml::create_job(name),
+            create_queue: sql::dml::create_queue(name),
+            delete_queue: sql::dml::delete_queue(name),
             // ...
             fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
             fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
-            // ...
-            create_queue: sql::proc::create_queue(name),
-            delete_queue: sql::proc::delete_queue(name),
         }
     }
 }
@@ -66,13 +66,24 @@ impl Client {
     async fn init(&mut self) -> Result<(), sqlx::Error> {
         if let Some(app) = self.maybe_existing_app().await? {
             log::info!(
-                "App already exists: version={}, maintained_on={:?}, cron_on={:?}",
+                "app already exists: version={}, cron_on={:?}",
                 app.version,
-                app.maintained_on,
                 app.cron_on
             );
             if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION as i32 {
-                panic!("Cannot migrate from the currently installed PgBoss application.")
+                panic!(
+                    "cannot migrate from currently installed PgBoss application version: installed={}, minimal={}",
+                    app.version,
+                    crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION
+                )
+            }
+            if app.version < crate::CURRENT_PGBOSS_APP_VERSION as i32 {
+                log::info!(
+                    "need to apply migratations to the existing app: version={}, latest={}",
+                    app.version,
+                    crate::CURRENT_PGBOSS_APP_VERSION
+                );
+                panic!("unreachable as of release 0.1.0")
             }
             return Ok(());
         }
@@ -82,8 +93,18 @@ impl Client {
 
     async fn install_app(&mut self) -> Result<(), sqlx::Error> {
         let ddl = sql::install_app(&self.opts.schema);
-        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
-        Ok(())
+        if let Err(sqlx_err) = sqlx::raw_sql(&ddl).execute(&self.pool).await {
+            if let sqlx::Error::Database(sqlx_db_err) = &sqlx_err {
+                let msg = sqlx_db_err.message();
+                if msg.ends_with("already exists") {
+                    info!("assuming the mogrationn are already applied, message: {msg}");
+                    return Ok(());
+                }
+            }
+            Err(sqlx_err)
+        } else {
+            Ok(())
+        }
     }
 
     async fn maybe_existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {

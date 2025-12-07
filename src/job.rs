@@ -117,11 +117,10 @@ pub(crate) struct JobOptions<'a> {
 }
 
 /// A job to be sent to the server.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Job<'a> {
     /// ID to assign to this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
 
     /// Name of the queue to put this job onto.
@@ -187,7 +186,7 @@ pub struct Job<'a> {
 ///
 /// As soon as a job is fetched from the server, it's status transitions to `active`
 /// and whoever has fetch this job will hav
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct JobDetails {
     /// ID of this job.

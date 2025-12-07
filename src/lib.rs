@@ -76,6 +76,5 @@ pub(crate) const CURRENT_PGBOSS_APP_VERSION: u8 = 26;
 #[derive(Debug, Clone, Default, FromRow)]
 pub(crate) struct App {
     pub(crate) version: i32,
-    pub(crate) maintained_on: Option<DateTime<Utc>>,
     pub(crate) cron_on: Option<DateTime<Utc>>,
 }
