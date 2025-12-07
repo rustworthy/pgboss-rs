@@ -2,6 +2,7 @@ pub(crate) mod ddl;
 pub(crate) mod dml;
 pub(crate) mod proc;
 
+// https://github.com/timgit/pg-boss/blob/3da860f0e6f0650dcb95f62e5b71af6dfbeb44f1/src/plans.ts#L987
 fn locked<I>(schema: &str, stmts: I) -> String
 where
     I: IntoIterator<Item = String>,
@@ -41,31 +42,18 @@ pub(crate) fn install_app(schema: &str) -> String {
             ddl::create_job_state_enum(schema),
             ddl::create_version_table(schema),
             ddl::create_queue_table(schema),
+            ddl::create_schedule_table(schema),
             ddl::create_subscription_table(schema),
             ddl::create_job_table(schema),
-            ddl::create_archive_table(schema),
+            ddl::create_job_common_table(schema),
+            // ...
             proc::create_create_queue_function(schema),
             proc::create_delete_queue_function(schema),
-            proc::create_create_job_function(schema),
+            // ...
             proc::create_fail_job_by_jids_function(schema),
             proc::create_fail_job_by_timeout_procedure(schema),
-            proc::create_archive_procedure(schema),
             // ...
             dml::insert_version(schema, crate::CURRENT_PGBOSS_APP_VERSION),
-        ],
-    )
-}
-
-pub(crate) fn install_functions(schema: &str) -> String {
-    locked(
-        schema,
-        [
-            proc::create_create_queue_function(schema),
-            proc::create_delete_queue_function(schema),
-            proc::create_create_job_function(schema),
-            proc::create_fail_job_by_jids_function(schema),
-            proc::create_fail_job_by_timeout_procedure(schema),
-            proc::create_archive_procedure(schema),
         ],
     )
 }

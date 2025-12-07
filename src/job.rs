@@ -50,7 +50,7 @@ impl TryFrom<String> for JobState {
             "completed" => Ok(Self::Completed),
             "cancelled" => Ok(Self::Cancelled),
             "failed" => Ok(Self::Failed),
-            other => Err(format!("Unsupported job state: {}", other)),
+            other => Err(format!("Unsupported job state: {other}")),
         }
     }
 }
@@ -65,7 +65,7 @@ impl std::fmt::Display for JobState {
             Self::Cancelled => "cancelled",
             Self::Failed => "failed",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -97,8 +97,11 @@ pub(crate) struct JobOptions<'a> {
     )]
     expire_in: Option<Duration>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    keep_until: Option<DateTime<Utc>>,
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    retain_for: Option<Duration>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     start_after: Option<DateTime<Utc>>,
@@ -156,13 +159,11 @@ pub struct Job<'a> {
     /// Should be between 1 second and 24 hours, or simply unset (default).
     pub expire_in: Option<Duration>,
 
-    /// When this job can be archived.
+    /// How how long this job should be retained.
     ///
-    /// Specifies for how long this job may be in `created` or `retry` state before
-    /// it is archived.
-    ///
-    /// Should be greater than or equal to 1 second, or simply unset (default).
-    pub keep_until: Option<DateTime<Utc>>,
+    /// Note that the retention deadline will be calculated starting
+    /// from the [`Job::start_after`] point.
+    pub retain_for: Option<Duration>,
 
     /// When this job should become visible to consumers.
     ///
@@ -300,28 +301,28 @@ impl FromRow<'_, PgRow> for JobDetails {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_delay".to_string(),
-                source: format!("'priority' should be non-negative, got: {}", v).into(),
+                source: format!("'priority' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_limit = row.try_get("retry_limit").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_limit".to_string(),
-                source: format!("'retry_limit' should be non-negative, got: {}", v).into(),
+                source: format!("'retry_limit' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_delay = row.try_get("retry_delay").and_then(|v: i32| match v {
             v if v >= 0 => Ok(Duration::from_secs(v as u64)),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_delay".to_string(),
-                source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
+                source: format!("'retry_delay' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_count = row.try_get("retry_count").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_count".to_string(),
-                source: format!("'retry_count' should be non-negative, got: {}", v).into(),
+                source: format!("'retry_count' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_backoff: bool = row.try_get("retry_backoff")?;
@@ -385,7 +386,7 @@ impl<'a> Job<'a> {
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            keep_until: self.keep_until,
+            retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,
@@ -393,7 +394,7 @@ impl<'a> Job<'a> {
     }
 }
 
-/// A builder for a job.
+/// A builder for [`Job`].
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct JobBuilder<'a> {
@@ -406,7 +407,7 @@ pub struct JobBuilder<'a> {
     pub(crate) retry_delay: Option<Duration>,
     pub(crate) retry_backoff: Option<bool>,
     pub(crate) expire_in: Option<Duration>,
-    pub(crate) keep_until: Option<DateTime<Utc>>,
+    pub(crate) retain_for: Option<Duration>,
     pub(crate) start_after: Option<DateTime<Utc>>,
     pub(crate) singleton_for: Option<Duration>,
     pub(crate) singleton_key: Option<&'a str>,
@@ -469,17 +470,9 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
-    /// When this job can be archived.
-    pub fn keep_until(mut self, value: DateTime<Utc>) -> Self {
-        self.keep_until = Some(value);
-        self
-    }
-
     /// For how long this job should be retained in the system.
-    ///
-    /// Will calculate and set [`JobBuilder::keep_until`].
     pub fn retain_for(mut self, value: Duration) -> Self {
-        self.keep_until = Some(Utc::now() + value);
+        self.retain_for = Some(value);
         self
     }
 
@@ -526,7 +519,7 @@ impl<'a> JobBuilder<'a> {
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            keep_until: self.keep_until,
+            retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,

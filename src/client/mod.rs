@@ -15,7 +15,6 @@ struct Statements {
     delete_jobs: String,
     fail_jobs_by_jids: String,
     fail_jobs_by_timeout: String,
-    archive_jobs: String,
     cancel_jobs: String,
     complete_jobs: String,
     resume_jobs: String,
@@ -32,16 +31,17 @@ impl Statements {
             fetch_jobs: sql::dml::fetch_jobs(name),
             get_job_info: sql::dml::get_job_info(name),
             delete_jobs: sql::dml::delete_jobs(name),
-            create_job: sql::proc::create_job(name),
-            fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
-            fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
-            archive_jobs: sql::proc::archive_jobs(name),
             cancel_jobs: sql::dml::cancel_jobs(name),
             resume_jobs: sql::dml::resume_jobs(name),
             complete_jobs: sql::dml::complete_jobs(name),
-            create_queue: sql::proc::create_queue(name),
             get_queue: sql::dml::get_queue(name),
             get_queues: sql::dml::get_queues(name),
+            create_job: sql::dml::create_job(name),
+            // ...
+            fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
+            fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
+            // ...
+            create_queue: sql::proc::create_queue(name),
             delete_queue: sql::proc::delete_queue(name),
         }
     }
@@ -74,10 +74,6 @@ impl Client {
             if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION as i32 {
                 panic!("Cannot migrate from the currently installed PgBoss application.")
             }
-            // We are still (re)installing functions, because:
-            // - we are using `create_job` function (not used in Node.js PgBoss implementation)
-            // - in the `crate_queue` function, we are using `jsonb` as `options` type (`json` in Node.js PgBoss)
-            self.install_functions().await?;
             return Ok(());
         }
         self.install_app().await?;
@@ -86,12 +82,6 @@ impl Client {
 
     async fn install_app(&mut self) -> Result<(), sqlx::Error> {
         let ddl = sql::install_app(&self.opts.schema);
-        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
-        Ok(())
-    }
-
-    async fn install_functions(&self) -> Result<(), sqlx::Error> {
-        let ddl = sql::install_functions(&self.opts.schema);
         sqlx::raw_sql(&ddl).execute(&self.pool).await?;
         Ok(())
     }

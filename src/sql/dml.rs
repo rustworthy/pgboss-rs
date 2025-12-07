@@ -15,10 +15,7 @@ pub(crate) fn get_app(schema: &str) -> String {
 }
 
 pub(crate) fn insert_version(schema: &str, version: u8) -> String {
-    format!(
-        "INSERT INTO {schema}.version (version) VALUES ({}) ON CONFLICT DO NOTHING;",
-        version
-    )
+    format!("INSERT INTO {schema}.version (version) VALUES ({version}) ON CONFLICT DO NOTHING;")
 }
 
 pub(crate) fn get_queue(schema: &str) -> String {
@@ -57,6 +54,74 @@ pub(crate) fn get_queues(schema: &str) -> String {
             updated_on as updated_at
         FROM {schema}.queue;
         "
+    )
+}
+
+// $1 - jid
+// $2 - job name (and, hence, queue name)
+// $3 - data
+// $4 - opts
+pub(crate) fn create_job(schema: &str) -> String {
+    format!(
+        r#"
+        INSERT INTO {schema}.job (
+            id,
+            name,
+            data,
+            priority,
+            start_after,
+            singleton_key,
+            singleton_on,
+            expire_seconds,
+            deletion_seconds,
+            keep_until,
+            retry_limit,
+            retry_delay,
+            retry_backoff,
+            retry_delay_max,
+            policy,
+            dead_letter
+        )
+        SELECT
+            COALESCE($1, gen_random_uuid()) as id,
+            $2,
+            $3::jsonb,
+            COALESCE(priority, 0) as priority,
+            j.start_after,
+            singleton_key,
+            CASE
+                WHEN singleton_for IS NOT NULL 
+                THEN 'epoch'::timestamp + '1s'::interval * (singleton_for * floor(( date_part('epoch', now()) + COALESCE(singleton_offset,0)) / singleton_for ))
+                ELSE NULL
+            END as singleton_on,
+            COALESCE(expire_in, q.expire_seconds) as expire_seconds,
+            COALESCE(delete_after, q.deletion_seconds) as deletion_seconds,
+            j.start_after + (COALESCE(retain_for, q.retention_seconds) * interval '1s') as keep_until,
+            COALESCE(retry_limit, q.retry_limit) as retry_limit,
+            COALESCE(retry_delay, q.retry_delay) as retry_delay,
+            COALESCE(retry_backoff, q.retry_backoff, false) as retry_backoff,
+            COALESCE(retry_delay_max, q.retry_delay_max) as retry_delay_max,
+            q.policy,
+            q.dead_letter
+        FROM (
+            SELECT * FROM json_to_recordset($4::json) as x (
+                priority         integer,
+                start_after      timestamptz,
+                retry_limit      integer,
+                retry_delay      integer,
+                retry_delay_max  integer,
+                retry_backoff    boolean,
+                singleton_key    text,
+                singleton_for    integer,
+                singleton_offset integer,
+                expire_in        integer,
+                delete_after     integer,
+                retain_for       integer
+            )
+        ) j JOIN {schema}.queue q ON q.name = $2
+        ON CONFLICT DO NOTHING
+        RETURNING id;
+        "#
     )
 }
 

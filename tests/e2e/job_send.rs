@@ -1,15 +1,14 @@
-use std::time::Duration;
-
 use crate::utils;
 use chrono::Utc;
 use pgboss::{Client, Error, Job, JobState, QueuePolicy};
 use serde_json::json;
+use std::time::Duration;
 use tokio::time;
 
 #[tokio::test]
 async fn send_job() {
     let local = "send_job";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -20,7 +19,7 @@ async fn send_job() {
 #[tokio::test]
 async fn send_job_with_id() {
     let local = "send_job_with_id";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -42,7 +41,7 @@ async fn send_job_with_id() {
 #[tokio::test]
 async fn send_job_with_dead_letter() {
     let local = "send_job_with_dead_letter";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -64,7 +63,7 @@ async fn send_job_with_dead_letter() {
 #[tokio::test]
 async fn send_job_with_dead_letter_does_not_exist() {
     let local = "send_job_with_dead_letter_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -86,7 +85,7 @@ async fn send_job_with_dead_letter_does_not_exist() {
 #[tokio::test]
 async fn send_job_queue_does_not_exist() {
     let local = "send_job_queue_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     let job = Job::builder().queue_name("jobtype").build();
@@ -100,7 +99,7 @@ async fn send_job_queue_does_not_exist() {
 #[tokio::test]
 async fn send_data() {
     let local = "send_data";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -111,7 +110,7 @@ async fn send_data() {
 #[tokio::test]
 async fn send_data_queue_does_not_exist() {
     let local = "send_data_queue_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
 
@@ -129,7 +128,7 @@ async fn send_data_queue_does_not_exist() {
 #[tokio::test]
 async fn send_job_fully_customized() {
     let local = "send_job_fully_customized";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -138,8 +137,7 @@ async fn send_job_fully_customized() {
         .unwrap();
 
     let id = uuid::Uuid::new_v4();
-    // `JobBuilder::retain_for` can do the following for us
-    let keep_until = Utc::now() + Duration::from_secs(60 * 60 * 2);
+    let retain_for = Duration::from_secs(60 * 60 * 2);
     let job = Job::builder()
         .id(id)
         .queue_name("jobtype")
@@ -150,7 +148,7 @@ async fn send_job_fully_customized() {
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
         .expire_in(Duration::from_secs(30))
-        .keep_until(keep_until)
+        .retain_for(retain_for)
         .delay_for(Duration::from_secs(5))
         .singleton_for(Duration::from_secs(7))
         .singleton_key("buzz")
@@ -198,14 +196,14 @@ async fn send_job_fully_customized() {
         job_info
             .keep_until
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-        keep_until.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        (job_info.start_after + retain_for).to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     );
 }
 
 #[tokio::test]
 async fn send_jobs_throttled() {
     let local = "send_jobs_throttled";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -242,7 +240,7 @@ async fn send_jobs_throttled() {
 #[tokio::test]
 async fn send_job_dlq_named_as_main_queue() {
     let local = "send_job_dlq_named_as_main_queue";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();

@@ -32,6 +32,11 @@ pub enum QueuePolicy {
     /// Combination of short and singleton: only allows 1 job per state, queued and/or active.
     /// Can be extended with `singletonKey`
     Stately,
+
+    /// Exclusive.
+    ///
+    /// Only allows 1 job to be queued or active. Can be extended with singletonKey.
+    Exclusive,
 }
 
 impl TryFrom<String> for QueuePolicy {
@@ -42,7 +47,7 @@ impl TryFrom<String> for QueuePolicy {
             "singleton" => Ok(Self::Singleton),
             "stately" => Ok(Self::Stately),
             "standard" => Ok(Self::Standard),
-            other => Err(format!("Unsupported queue policy: {}", other)),
+            other => Err(format!("Unsupported queue policy: {other}")),
         }
     }
 }
@@ -54,8 +59,9 @@ impl std::fmt::Display for QueuePolicy {
             Self::Short => "short",
             Self::Singleton => "singleton",
             Self::Stately => "stately",
+            Self::Exclusive => "exclusive",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -255,7 +261,7 @@ impl FromRow<'_, PgRow> for QueueDetails {
                     Some(v) if v >= 0 => Ok(Some(v as usize)),
                     Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retry_limit".to_string(),
-                        source: format!("'retry_limit' should be non-negative, got {}", v).into(),
+                        source: format!("'retry_limit' should be non-negative, got {v}").into(),
                     }),
                 })?;
         let retry_delay: Option<Duration> =
@@ -265,7 +271,7 @@ impl FromRow<'_, PgRow> for QueueDetails {
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
                     Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retry_delay".to_string(),
-                        source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
+                        source: format!("'retry_delay' should be non-negative, got: {v}").into(),
                     }),
                 })?;
         let retry_backoff: Option<bool> = row.try_get("retry_backoff")?;
@@ -276,8 +282,7 @@ impl FromRow<'_, PgRow> for QueueDetails {
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
                     Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "expire_seconds".to_string(),
-                        source: format!("'expire_seconds' should be non-negative, got: {}", v)
-                            .into(),
+                        source: format!("'expire_seconds' should be non-negative, got: {v}").into(),
                     }),
                 })?;
         let retain_for: Option<Duration> =
@@ -287,7 +292,7 @@ impl FromRow<'_, PgRow> for QueueDetails {
                     Some(v) if v >= 0 => Ok(Some(Duration::from_secs((v * 60) as u64))),
                     Some(v) => Err(sqlx::Error::ColumnDecode {
                         index: "retention_minutes".to_string(),
-                        source: format!("'retention_minutes' should be non-negative, got: {}", v)
+                        source: format!("'retention_minutes' should be non-negative, got: {v}")
                             .into(),
                     }),
                 })?;
