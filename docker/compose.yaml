@@ -14,4 +14,6 @@ services:
       - "postgres"
       - "-c"
       - "config_file=/var/lib/postgresql/postgresql.conf"
+    volumes:
+      - ./pgdump:/var/lib/postgresql/pgdump
     container_name: pgboss

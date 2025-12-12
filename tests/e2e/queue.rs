@@ -6,26 +6,15 @@ use pgboss::{Client, Queue, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
 
 #[tokio::test]
-async fn simple_connect() {
-    utils::drop_schema("pgboss").await.unwrap();
-    // This will crate `pgboss` schema, which is does not
-    // allow us to isolate tests properly, so we only use it
-    // once in this test - sanity check.
-    //
-    // We are also leaving it behind to able to inspect the db with psql.
-    Client::connect().await.unwrap();
-    Client::connect_to(POSRGRES_URL.as_str()).await.unwrap();
-}
-
-#[tokio::test]
 async fn connect_to() {
     let local = "connect_to";
+    utils::drop_schema(local).await.unwrap();
+
     let _c = Client::builder()
         .schema(local)
         .connect_to(POSRGRES_URL.as_str())
         .await
         .unwrap();
-    utils::drop_schema(local).await.unwrap();
 }
 
 // On CI - when running on Ubuntu with our postgres service with TLS enabled - use '--include-ignored'

@@ -88,25 +88,25 @@ pub(crate) fn create_job(schema: &str) -> String {
             COALESCE($1, gen_random_uuid()) as id,
             $2,
             $3::jsonb,
-            COALESCE(priority, 0) as priority,
-            j.start_after,
-            singleton_key,
+            COALESCE(j.priority, 0) as priority,
+            COALESCE(j.start_after, now()),
+            j.singleton_key,
             CASE
-                WHEN singleton_for IS NOT NULL 
-                THEN 'epoch'::timestamp + '1s'::interval * (singleton_for * floor(( date_part('epoch', now()) + COALESCE(singleton_offset,0)) / singleton_for ))
+                WHEN j.singleton_for IS NOT NULL 
+                THEN 'epoch'::timestamp + '1s'::interval * (j.singleton_for * floor(( date_part('epoch', now()) + COALESCE(j.singleton_offset,0)) / j.singleton_for ))
                 ELSE NULL
             END as singleton_on,
-            COALESCE(expire_in, q.expire_seconds) as expire_seconds,
-            COALESCE(delete_after, q.deletion_seconds) as deletion_seconds,
-            j.start_after + (COALESCE(retain_for, q.retention_seconds) * interval '1s') as keep_until,
-            COALESCE(retry_limit, q.retry_limit) as retry_limit,
-            COALESCE(retry_delay, q.retry_delay) as retry_delay,
-            COALESCE(retry_backoff, q.retry_backoff, false) as retry_backoff,
-            COALESCE(retry_delay_max, q.retry_delay_max) as retry_delay_max,
+            COALESCE(j.expire_in, q.expire_seconds) as expire_seconds,
+            COALESCE(j.delete_after, q.deletion_seconds) as deletion_seconds,
+            coalesce(j.start_after, now()) + (COALESCE(j.retain_for, q.retention_seconds) * interval '1s') as keep_until,
+            COALESCE(j.retry_limit, q.retry_limit) as retry_limit,
+            COALESCE(j.retry_delay, q.retry_delay) as retry_delay,
+            COALESCE(j.retry_backoff, q.retry_backoff, false) as retry_backoff,
+            COALESCE(j.retry_delay_max, q.retry_delay_max) as retry_delay_max,
             q.policy,
             q.dead_letter
         FROM (
-            SELECT * FROM json_to_recordset($4::json) as x (
+            SELECT * FROM jsonb_to_record($4) as x (
                 priority         integer,
                 start_after      timestamptz,
                 retry_limit      integer,
@@ -121,51 +121,55 @@ pub(crate) fn create_job(schema: &str) -> String {
                 retain_for       integer
             )
         ) j JOIN {schema}.queue q ON q.name = $2
-        ON CONFLICT DO NOTHING
         RETURNING id;
         "#
     )
 }
 
+// $1 -  queue name
+// $2 -  limit
 pub(crate) fn fetch_jobs(schema: &str) -> String {
     format!(
         r#"
         WITH next AS (
             SELECT id FROM {schema}.job
-            WHERE name = $1 AND state < 'active' AND start_after < now()
+            WHERE name = $1 AND state < '{0}' AND start_after < now()
             ORDER BY priority DESC, created_on, id
             LIMIT $2
             FOR UPDATE
             SKIP LOCKED
         )
         UPDATE {schema}.job j SET
-            state = 'active',
+            state = '{0}',
             started_on = now(),
             retry_count = CASE WHEN started_on IS NULL THEN retry_count ELSE retry_count + 1 END
         FROM next
         WHERE name = $1 AND j.id = next.id
-        RETURNING 
+        RETURNING
             j.id,
             name,
-            data,
-            EXTRACT(epoch FROM expire_in)::float8 as expire_in,
-            state,
-            policy,
             priority,
+            data,
+            state,
             retry_limit,
-            retry_delay,
             retry_count,
+            retry_delay,
             retry_backoff,
+            retry_delay_max,
+            expire_seconds,
+            deletion_seconds,
+            singleton_key,
+            singleton_on as singleton_at,
             start_after,
             created_on as created_at,
             started_on as started_at,
-            singleton_on as singleton_at,
             completed_on as completed_at,
-            singleton_key,
-            dead_letter,
             keep_until,
-            output;
-        "#
+            output,
+            dead_letter,
+            policy;
+        "#,
+        JobState::Active
     )
 }
 
@@ -229,34 +233,33 @@ pub(crate) fn complete_jobs(schema: &str) -> String {
         JobState::Completed, // 1
     )
 }
-//                   id                  |  name       | priority | data |   state   | retry_limit | retry_count | retry_delay | retry_backoff |          start_after          |          started_on           | singleton_key | singleton_on | expire_in |          created_on           |         completed_on          |          keep_until           |         output                  | dead_letter |  policy
-// --------------------------------------+-------------+----------+------+-----------+-------------+-------------+-------------+---------------+-------------------------------+-------------------------------+---------------+--------------+-----------+-------------------------------+-------------------------------+-------------------------------+---------------------------------+-------------+----------
-//  71c7e215-0528-417c-951b-fc01b3fac4b3 | jobtype     |        0 | null | completed |           0 |           0 |           0 | f             | 2024-09-29 09:23:09.502695+00 | 2024-09-29 09:23:09.514796+00 |               |              | 00:15:00  | 2024-09-29 09:23:09.502695+00 | 2024-09-29 09:23:09.526609+00 | 2024-10-13 09:23:09.502695+00 | {"result": "success!"}          |             | standard
-//  b4d1a8e0-c214-46aa-a796-7ac738cc0a76 | jobtype_dlq |        0 | null | active    |           0 |           0 |           0 | f             | 2024-10-02 20:11:13.056306+00 | 2024-10-02 20:11:13.068546+00 |               |              | 00:15:00  | 2024-10-02 20:11:13.056306+00 |                               | 2024-10-30 20:11:13.02769+00  | {"details": "testing again..."} |             |
+
 pub(crate) fn get_job_info(schema: &str) -> String {
     format!(
         r#"
         SELECT
             id,
             name,
-            data,
-            EXTRACT(epoch FROM expire_in)::float8 as expire_in,
-            state,
-            policy,
             priority,
+            data,
+            state,
             retry_limit,
+            retry_count,
             retry_delay,
-            retry_count,                                                    
             retry_backoff,
+            retry_delay_max,
+            expire_seconds,
+            deletion_seconds,
+            singleton_key,
+            singleton_on as singleton_at,
             start_after,
             created_on as created_at,
             started_on as started_at,
-            singleton_on as singleton_at,
             completed_on as completed_at,
-            singleton_key,
             keep_until,
+            output,
             dead_letter,
-            output
+            policy
         FROM {schema}.job
         WHERE name = $1 and id = $2;
         "#,

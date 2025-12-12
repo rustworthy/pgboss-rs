@@ -1,4 +1,5 @@
 use super::utils;
+use crate::utils::TryGetDuration as _;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, postgres::PgRow};
@@ -330,24 +331,6 @@ impl FromRow<'_, PgRow> for QueueDetails {
             dead_letter,
             created_at,
             updated_at,
-        })
-    }
-}
-
-trait TryGetDuration {
-    type Error;
-    fn try_get_duration(&self, field: &str) -> Result<Duration, Self::Error>;
-}
-
-impl TryGetDuration for PgRow {
-    type Error = sqlx::Error;
-    fn try_get_duration(&self, field: &str) -> Result<Duration, Self::Error> {
-        self.try_get(field).and_then(|v: i32| match v {
-            v if v >= 0 => Ok(Duration::from_secs((v) as u64)),
-            v => Err(sqlx::Error::ColumnDecode {
-                index: field.to_string(),
-                source: format!("'{field}' should be non-negative, got: {v}").into(),
-            }),
         })
     }
 }

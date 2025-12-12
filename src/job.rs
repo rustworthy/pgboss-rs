@@ -1,4 +1,5 @@
 use super::utils;
+use crate::utils::TryGetDuration as _;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -75,10 +76,6 @@ impl std::fmt::Display for JobState {
 pub(crate) struct JobOptions<'a> {
     priority: usize,
 
-    /// Name of the dead letter queue for this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dead_letter: Option<&'a str>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     retry_limit: Option<usize>,
 
@@ -134,9 +131,6 @@ pub struct Job<'a> {
     /// Higher numbers will have higher priority
     /// when fetching from the queue.
     pub priority: usize,
-
-    /// Name of the dead letter queue for this job.
-    pub dead_letter: Option<&'a str>,
 
     /// Number of retry attempts.
     ///
@@ -277,13 +271,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         let queue_name: String = row.try_get("name")?;
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
         let data: serde_json::Value = row.try_get("data")?;
-        let expire_in = row.try_get("expire_in").and_then(|v: f64| match v {
-            v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
-            _ => Err(sqlx::Error::ColumnDecode {
-                index: "expire_in".to_string(),
-                source: "'expire_in' should be non-negative".into(),
-            }),
-        })?;
+        let expire_in = row.try_get_duration("expire_seconds")?;
         let policy = row
             .try_get("policy")
             .and_then(|v: Option<String>| match v {
@@ -310,13 +298,7 @@ impl FromRow<'_, PgRow> for JobDetails {
                 source: format!("'retry_limit' should be non-negative, got: {v}").into(),
             }),
         })?;
-        let retry_delay = row.try_get("retry_delay").and_then(|v: i32| match v {
-            v if v >= 0 => Ok(Duration::from_secs(v as u64)),
-            v => Err(sqlx::Error::ColumnDecode {
-                index: "retry_delay".to_string(),
-                source: format!("'retry_delay' should be non-negative, got: {v}").into(),
-            }),
-        })?;
+        let retry_delay = row.try_get_duration("retry_delay")?;
         let retry_count = row.try_get("retry_count").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
@@ -380,7 +362,6 @@ impl<'a> Job<'a> {
     pub(crate) fn opts(&self) -> JobOptions<'_> {
         JobOptions {
             priority: self.priority,
-            dead_letter: self.dead_letter,
             retry_limit: self.retry_limit,
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
@@ -401,7 +382,6 @@ pub struct JobBuilder<'a> {
     pub(crate) queue_name: &'a str,
     pub(crate) data: serde_json::Value,
     pub(crate) priority: usize,
-    pub(crate) dead_letter: Option<&'a str>,
     pub(crate) retry_limit: Option<usize>,
     pub(crate) retry_delay: Option<Duration>,
     pub(crate) retry_backoff: Option<bool>,
@@ -434,12 +414,6 @@ impl<'a> JobBuilder<'a> {
     /// Job's priority.
     pub fn priority(mut self, value: usize) -> Self {
         self.priority = value;
-        self
-    }
-
-    /// Name of the dead letter queue for this job.
-    pub fn dead_letter(mut self, value: &'a str) -> Self {
-        self.dead_letter = Some(value);
         self
     }
 
@@ -513,7 +487,6 @@ impl<'a> JobBuilder<'a> {
             queue_name: self.queue_name,
             data: self.data,
             priority: self.priority,
-            dead_letter: self.dead_letter,
             retry_limit: self.retry_limit,
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,

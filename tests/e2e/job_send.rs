@@ -34,6 +34,7 @@ async fn send_job_with_id() {
     if let Error::Conflict { msg } = err {
         assert_eq!(msg, "job with this id already exists");
     } else {
+        dbg!(err);
         unreachable!()
     }
 }
@@ -50,36 +51,10 @@ async fn send_job_with_dead_letter() {
         .unwrap();
 
     let id = uuid::Uuid::new_v4();
-    let job = Job::builder()
-        .queue_name("jobtype")
-        .id(id)
-        .dead_letter("jobtype_dead_letter_queue")
-        .build();
+    let job = Job::builder().queue_name("jobtype").id(id).build();
 
     let inserted_id = c.send_job(&job).await.expect("no error");
     assert_eq!(inserted_id, id);
-}
-
-#[tokio::test]
-async fn send_job_with_dead_letter_does_not_exist() {
-    let local = "send_job_with_dead_letter_does_not_exist";
-    utils::drop_schema(local).await.unwrap();
-
-    let c = Client::builder().schema(local).connect().await.unwrap();
-    c.create_standard_queue("jobtype").await.unwrap();
-
-    let id = uuid::Uuid::new_v4();
-    let job = Job::builder()
-        .queue_name("jobtype")
-        .id(id)
-        .dead_letter("jobtype_dead_letter")
-        .build();
-    let err = c.send_job(&job).await.unwrap_err();
-    if let Error::DoesNotExist { msg } = err {
-        assert_eq!(msg, "dead letter queue does not exist");
-    } else {
-        unreachable!()
-    }
 }
 
 #[tokio::test]
@@ -89,9 +64,11 @@ async fn send_job_queue_does_not_exist() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     let job = Job::builder().queue_name("jobtype").build();
-    if let Error::DoesNotExist { msg } = c.send_job(&job).await.unwrap_err() {
+    let err = c.send_job(&job).await.unwrap_err();
+    if let Error::DoesNotExist { msg } = err {
         assert!(msg.contains("queue does not exist"))
     } else {
+        dbg!(err);
         unreachable!()
     }
 }
@@ -114,13 +91,14 @@ async fn send_data_queue_does_not_exist() {
 
     let c = Client::builder().schema(local).connect().await.unwrap();
 
-    if let Error::DoesNotExist { msg } = c
+    let err = c
         .send_data("jobtype", serde_json::json!({"key": "value"}))
         .await
-        .unwrap_err()
-    {
+        .unwrap_err();
+    if let Error::DoesNotExist { msg } = err {
         assert!(msg.contains("queue does not exist"))
     } else {
+        dbg!(err);
         unreachable!()
     }
 }
@@ -143,7 +121,6 @@ async fn send_job_fully_customized() {
         .queue_name("jobtype")
         .data(json!({"key": "value"}))
         .priority(10)
-        .dead_letter("jobtype_dead_letter_queue")
         .retry_limit(5)
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
@@ -235,74 +212,4 @@ async fn send_jobs_throttled() {
         .await
         .expect("queued this time and ID issued");
     assert_ne!(id1, id2);
-}
-
-#[tokio::test]
-async fn send_job_dlq_named_as_main_queue() {
-    let local = "send_job_dlq_named_as_main_queue";
-    utils::drop_schema(local).await.unwrap();
-
-    let c = Client::builder().schema(local).connect().await.unwrap();
-    c.create_standard_queue("jobtype").await.unwrap();
-    c.create_standard_queue("jobtype_dlq").await.unwrap();
-
-    let job1 = Job::builder()
-        .retry_limit(0)
-        .queue_name("jobtype")
-        .dead_letter("jobtype")
-        .build();
-
-    // but failed job where queue name == dlq name will not get into dlq
-    let id1 = c.send_job(&job1).await.expect("no error");
-
-    let fetched_job_1 = c.fetch_job("jobtype").await.unwrap().unwrap();
-    assert_eq!(fetched_job_1.id, id1);
-
-    // let's fail job1
-    let ok = c
-        .fail_job_with_details(
-            "jobtype",
-            fetched_job_1.id,
-            json!({"details": "testing..."}),
-        )
-        .await
-        .unwrap();
-    assert!(ok);
-
-    assert!(c.fetch_job("jobtype_dlq").await.unwrap().is_none());
-
-    let job2 = Job::builder()
-        .retry_limit(0)
-        .queue_name("jobtype")
-        .dead_letter("jobtype_dlq")
-        .build();
-    let id2 = c.send_job(&job2).await.expect("no error");
-
-    let fetched_job_2 = c.fetch_job("jobtype").await.unwrap().unwrap();
-    assert_ne!(fetched_job_2.id, id1);
-    assert_eq!(fetched_job_2.id, id2);
-
-    // let's fail job2
-    let ok = c
-        .fail_job_with_details(
-            "jobtype",
-            fetched_job_2.id,
-            json!({"details": "testing again..."}),
-        )
-        .await
-        .unwrap();
-    assert!(ok);
-
-    let job2_from_dlq = c.fetch_job("jobtype_dlq").await.unwrap().unwrap();
-    assert_eq!(fetched_job_2.dead_letter.unwrap(), job2_from_dlq.queue_name);
-    assert_eq!(fetched_job_2.data, job2_from_dlq.data);
-    assert_eq!(fetched_job_2.retry_limit, job2_from_dlq.retry_limit);
-    // we are efffectively resetting keep_until when writing a job
-    // to the `schema_name.job` relation
-    assert_ne!(fetched_job_2.keep_until, job2_from_dlq.keep_until);
-    // latest output is preserved when sending job to dlq
-    assert_eq!(
-        json!({"details": "testing again..."}),
-        job2_from_dlq.output.unwrap()
-    );
 }
