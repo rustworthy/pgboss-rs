@@ -197,7 +197,6 @@ pub(crate) mod proc {
             END;
         queue_created_on timestamptz;
         BEGIN
-
             WITH q as (
                 INSERT INTO {schema}.queue (
                     name,

@@ -100,6 +100,9 @@ pub struct Queue<'a> {
     ///
     /// Should be greater than or eqaul to 1 second, or simply unset (default).
     pub retain_for: Option<Duration>,
+
+    /// Whether the queue should form a dedicated partition.
+    pub partition: Option<bool>,
 }
 
 impl<'a> Queue<'a> {
@@ -157,6 +160,10 @@ pub(crate) struct QueueOptions<'a> {
         skip_serializing_if = "Option::is_none"
     )]
     pub retain_for: Option<Duration>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the queue should form a dedicated partition.
+    pub partition: Option<bool>,
 }
 
 impl<'a> Queue<'a> {
@@ -169,6 +176,7 @@ impl<'a> Queue<'a> {
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
             retain_for: self.retain_for,
+            partition: self.partition,
         }
     }
 }
@@ -184,6 +192,7 @@ pub struct QueueBuilder<'a> {
     retry_backoff: Option<bool>,
     expire_in: Option<Duration>,
     retain_for: Option<Duration>,
+    partition: Option<bool>,
 }
 
 impl<'a> QueueBuilder<'a> {
@@ -242,6 +251,12 @@ impl<'a> QueueBuilder<'a> {
         self
     }
 
+    /// Whether the queue should form a dedicated partition.
+    pub fn partition(mut self, val: bool) -> Self {
+        self.partition = Some(val);
+        self
+    }
+
     /// Terminal method for the builder returing [`Queue`]
     pub fn build(self) -> Queue<'a> {
         Queue {
@@ -253,6 +268,7 @@ impl<'a> QueueBuilder<'a> {
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
             retain_for: self.retain_for,
+            partition: self.partition,
         }
     }
 }

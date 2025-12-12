@@ -153,8 +153,8 @@ async fn create_queue_already_exists() {
 }
 
 #[tokio::test]
-async fn create_non_standard_queue() {
-    let local = "create_non_standard_queue";
+async fn create_queue() {
+    let local = "create_queue";
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
@@ -170,6 +170,7 @@ async fn create_non_standard_queue() {
         .expire_in(Duration::from_secs(60 * 60))
         .retain_for(Duration::from_secs(60 * 60 * 24))
         .dead_letter(dlq_opts.name)
+        .partition(true)
         .build();
 
     client.create_queue(&queue).await.unwrap();
