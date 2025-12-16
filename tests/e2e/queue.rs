@@ -163,7 +163,6 @@ async fn create_queue() {
 
     let queue = Queue::builder()
         .name("image_processing")
-        .policy(QueuePolicy::Singleton)
         .retry_limit(3)
         .retry_delay(Duration::from_secs(10))
         .retry_backoff(true)
@@ -183,7 +182,7 @@ async fn create_queue() {
         .find(|&q| q.name == "image_processing")
         .unwrap();
     assert_eq!(q.name, "image_processing");
-    assert_eq!(q.policy, QueuePolicy::Singleton);
+    assert_eq!(q.policy, QueuePolicy::Standard);
     assert_eq!(q.retry_limit, 3);
     assert_eq!(q.retry_delay, Duration::from_secs(10));
     assert!(q.retry_backoff);

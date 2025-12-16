@@ -248,7 +248,6 @@ pub(crate) mod proc {
             EXECUTE format('CREATE INDEX %1$s_i5 ON {schema}.%1$I (name, start_after) INCLUDE (priority, created_on, id) WHERE state < ''{2}''', tablename);
             EXECUTE format('CREATE UNIQUE INDEX %1$s_i4 ON {schema}.%1$I (name, singleton_on, COALESCE(singleton_key, '''')) WHERE state <> ''{5}'' AND singleton_on IS NOT NULL', tablename);
 
-
             IF options->>'policy' = 'short' THEN
                 EXECUTE format('CREATE UNIQUE INDEX %1$s_i1 ON {schema}.%1$I (name, COALESCE(singleton_key, '''')) WHERE state = ''{0}'' AND policy = ''{1}''', tablename);
             ELSIF options->>'policy' = 'singleton' THEN
