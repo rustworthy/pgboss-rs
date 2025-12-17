@@ -1,11 +1,10 @@
 use clap::Parser;
 use pgboss::{Client, Error};
 use serde_json::json;
-use std::sync::{Arc, atomic};
+use std::sync::{Arc, LazyLock, atomic};
 
-lazy_static::lazy_static! {
-    static ref SCHEMA_NAME: String = format!("schema_{}", uuid::Uuid::new_v4().as_simple());
-}
+static SCHEMA_NAME: LazyLock<String> =
+    LazyLock::new(|| format!("schema_{}", uuid::Uuid::new_v4().as_simple()));
 
 static QUEUES: &[&str] = &["qname"];
 

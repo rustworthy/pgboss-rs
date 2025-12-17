@@ -1,9 +1,8 @@
-use std::time::Duration;
-
-use crate::utils::{self, POSRGRES_URL};
+use crate::utils;
 use chrono::Utc;
 use pgboss::{Client, Queue, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 
 #[tokio::test]
 async fn connect_to() {
@@ -12,7 +11,7 @@ async fn connect_to() {
 
     let _c = Client::builder()
         .schema(local)
-        .connect_to(POSRGRES_URL.as_str())
+        .connect_to(utils::POSTGRES_URL.as_str())
         .await
         .unwrap();
 }
@@ -23,7 +22,7 @@ async fn connect_to() {
 #[tokio::test]
 async fn bring_your_own_pool() {
     let local = "bring_your_own_pool";
-    let url = format!("{}?sslmode=require", POSRGRES_URL.as_str());
+    let url = format!("{}?sslmode=require", utils::POSTGRES_URL.as_str());
     let p = PgPoolOptions::new()
         .max_connections(1)
         .connect(&url)
@@ -174,7 +173,7 @@ async fn create_queue() {
 
     client.create_queue(&queue).await.unwrap();
 
-    let queues = client.get_queues().await.unwrap();
+    let queues = client.get_all_queues().await.unwrap();
     assert_eq!(queues.len(), 2); // queue + dlq
 
     let q = queues

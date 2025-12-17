@@ -19,6 +19,19 @@ pub(crate) fn insert_version(schema: &str, version: u8) -> String {
 }
 
 pub(crate) fn get_queue(schema: &str) -> String {
+    get_queues(schema, Some("name = $1"))
+}
+
+pub(crate) fn get_all_queues(schema: &str) -> String {
+    get_queues(schema, None)
+}
+
+pub(crate) fn get_queues(schema: &str, where_clause: Option<&str>) -> String {
+    let where_clause = if let Some(clause) = where_clause {
+        format!("WHERE {clause}")
+    } else {
+        String::default()
+    };
     format!(
         "
         SELECT
@@ -27,34 +40,23 @@ pub(crate) fn get_queue(schema: &str) -> String {
             retry_limit,
             retry_delay,
             retry_backoff,
+            retry_delay_max,
             expire_seconds,
             retention_seconds,
             deletion_seconds,
+            partition,
             dead_letter,
+            deferred_count,
+            warning_queued,
+            queued_count,
+            active_count,
+            total_count,
+            singletons_active,
+            table_name,
             created_on as created_at,
             updated_on as updated_at
         FROM {schema}.queue
-        WHERE name = $1;
-        "
-    )
-}
-
-pub(crate) fn get_queues(schema: &str) -> String {
-    format!(
-        "
-        SELECT
-            name,
-            policy,
-            retry_limit,
-            retry_delay,
-            retry_backoff,
-            expire_seconds,
-            retention_seconds,
-            deletion_seconds,
-            dead_letter,
-            created_on as created_at,
-            updated_on as updated_at
-        FROM {schema}.queue;
+        {where_clause};
         "
     )
 }
@@ -92,7 +94,7 @@ pub(crate) fn create_job(schema: &str) -> String {
             COALESCE(j.start_after, now()),
             j.singleton_key,
             CASE
-                WHEN j.singleton_for IS NOT NULL 
+                WHEN j.singleton_for IS NOT NULL
                 THEN 'epoch'::timestamp + '1s'::interval * (j.singleton_for * floor(( date_part('epoch', now()) + COALESCE(j.singleton_offset,0)) / j.singleton_for ))
                 ELSE NULL
             END as singleton_on,
@@ -179,7 +181,7 @@ pub(crate) fn cancel_jobs(schema: &str) -> String {
         WITH results AS (
             UPDATE {schema}.job
             SET completed_on = now(), state = '{0}'::{schema}.job_state
-            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{1}'::{schema}.job_state      
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{1}'::{schema}.job_state
             RETURNING 1
         )
         SELECT COUNT(*) from results;
@@ -195,7 +197,7 @@ pub(crate) fn resume_jobs(schema: &str) -> String {
         WITH results AS (
             UPDATE {schema}.job
             SET completed_on = NULL, state = '{0}'::{schema}.job_state
-            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state = '{1}'::{schema}.job_state      
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state = '{1}'::{schema}.job_state
             RETURNING 1
         )
         SELECT COUNT(*) from results;
@@ -210,7 +212,7 @@ pub(crate) fn delete_jobs(schema: &str) -> String {
         r#"
         WITH results AS (
             DELETE FROM {schema}.job
-            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[]))        
+            WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[]))
             RETURNING 1
         )
         SELECT COUNT(*) from results;
@@ -225,7 +227,7 @@ pub(crate) fn complete_jobs(schema: &str) -> String {
             UPDATE {schema}.job
             SET state = '{1}'::{schema}.job_state, completed_on = now(), output = $3::jsonb
             WHERE name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state = '{0}'::{schema}.job_state
-            RETURNING 1
+            RETURNING *
         )
         SELECT COUNT(*) from results;
         "#,
@@ -272,6 +274,192 @@ pub(crate) fn create_queue(schema: &str) -> String {
 
 pub(crate) fn delete_queue(schema: &str) -> String {
     format!("SELECT {schema}.delete_queue($1);")
+}
+
+pub(crate) fn fail_jobs_by_jids(schema: &str) -> String {
+    let where_clause = format!(
+        "name = $1 AND id IN (SELECT UNNEST($2::uuid[])) AND state < '{0}'",
+        JobState::Completed
+    );
+    let failure_details = "$3::jsonb";
+    fail_jobs(schema, where_clause.as_str(), failure_details)
+}
+
+pub(crate) fn fail_jobs_by_timeout(schema: &str) -> String {
+    // TODO: we will actually be setting monitor on on the queues
+    // TODO: returning those names that are ready for maintence, and
+    // TODO: so here we will be also specifying queue names like:
+    // TODO: `AND ANY(ARRAY['queue1,queue2,etc']::text[])
+    let where_clause = format!(
+        r#"
+        state = '{0}'
+        AND (started_on + expire_seconds * interval '1s') < now()
+        "#,
+        JobState::Active
+    );
+    // same message as PgBoss is using
+    let failure_details = r#"'{ "value": { "message": "job timed out" } }'::jsonb"#;
+    fail_jobs(schema, where_clause.as_str(), failure_details)
+}
+
+pub(crate) fn fail_jobs(schema: &str, where_clause: &str, failure_details: &str) -> String {
+    format!(
+        r#"
+        WITH deleted_jobs AS (
+            DELETE FROM {schema}.job
+            WHERE {where_clause}
+            RETURNING *
+        ),
+        retried_jobs AS (
+            INSERT INTO {schema}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                retry_delay_max,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_seconds,
+                deletion_seconds,
+                created_on,
+                completed_on,
+                keep_until,
+                policy,
+                output,
+                dead_letter
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                CASE
+                WHEN retry_count < retry_limit THEN '{0}'::{schema}.job_state
+                ELSE '{1}'::{schema}.job_state
+                END as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                retry_delay_max,
+                CASE WHEN retry_count = retry_limit THEN start_after
+                    WHEN NOT retry_backoff THEN now() + retry_delay * interval '1'
+                    ELSE now() + LEAST(
+                    retry_delay_max,
+                    retry_delay + (
+                        2 ^ LEAST(16, retry_count + 1) / 2 +
+                        2 ^ LEAST(16, retry_count + 1) / 2 * random()
+                    )
+                    ) * interval '1s'
+                END as start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_seconds,
+                deletion_seconds,
+                created_on,
+                CASE WHEN retry_count < retry_limit THEN NULL ELSE now() END as completed_on,
+                keep_until,
+                policy,
+                {failure_details},
+                dead_letter
+            FROM deleted_jobs
+            ON CONFLICT DO NOTHING
+            RETURNING *
+        ),
+        failed_jobs as (
+            INSERT INTO {schema}.job (
+                id,
+                name,
+                priority,
+                data,
+                state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                retry_delay_max,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_seconds,
+                deletion_seconds,
+                created_on,
+                completed_on,
+                keep_until,
+                policy,
+                output,
+                dead_letter
+            )
+            SELECT
+                id,
+                name,
+                priority,
+                data,
+                '{1}'::{schema}.job_state as state,
+                retry_limit,
+                retry_count,
+                retry_delay,
+                retry_backoff,
+                retry_delay_max,
+                start_after,
+                started_on,
+                singleton_key,
+                singleton_on,
+                expire_seconds,
+                deletion_seconds,
+                created_on,
+                now() as completed_on,
+                keep_until,
+                policy,
+                {failure_details},
+                dead_letter
+            FROM deleted_jobs
+            WHERE id NOT IN (SELECT id from retried_jobs)
+            RETURNING *
+        ),
+        results as (
+            SELECT * FROM retried_jobs
+            UNION ALL
+            SELECT * FROM failed_jobs
+        ),
+        dlq_jobs as (
+            INSERT INTO {schema}.job (
+                name,
+                data,
+                output,
+                retry_limit,
+                retry_backoff,
+                retry_delay,
+                keep_until,
+                deletion_seconds
+            )
+            SELECT
+                r.dead_letter,
+                data,
+                output,
+                q.retry_limit,
+                q.retry_backoff,
+                q.retry_delay,
+                now() + q.retention_seconds * interval '1s',
+                q.deletion_seconds
+            FROM results r
+                JOIN {schema}.queue q ON q.name = r.dead_letter
+            WHERE state = '{1}'::{schema}.job_state
+        )
+        SELECT COUNT(*) FROM results
+        "#,
+        JobState::Retry,
+        JobState::Failed,
+    )
 }
 
 // -------------------------- MAINTENANCE -------------------------------------

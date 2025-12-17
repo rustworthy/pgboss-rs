@@ -6,7 +6,7 @@ use uuid::Uuid;
 async fn delete_job_queue_does_not_exist() {
     let schema_name = "delete_job_queue_does_not_exist";
     let qname = "jobtype";
-    utils::drop_schema(&schema_name).await.unwrap();
+    utils::drop_schema(schema_name).await.unwrap();
 
     let c = Client::builder()
         .schema(schema_name)
@@ -28,7 +28,7 @@ async fn delete_job_does_not_exist() {
 #[tokio::test]
 async fn delete_job() {
     let local = "delete_job";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -48,7 +48,7 @@ async fn delete_job() {
 #[tokio::test]
 async fn delete_jobs() {
     let local = "delete_jobs";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -101,7 +101,7 @@ async fn delete_jobs() {
 #[tokio::test]
 async fn delete_jobs_queue_does_not_exist() {
     let local = "delete_jobs_queue_does_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
 
@@ -112,7 +112,7 @@ async fn delete_jobs_queue_does_not_exist() {
 #[tokio::test]
 async fn delete_jobs_do_not_exist() {
     let local = "delete_jobs_do_not_exist";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();

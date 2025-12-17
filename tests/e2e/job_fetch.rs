@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[tokio::test]
 async fn fetch_one_job() {
     let local = "fetch_one_job";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -100,7 +100,7 @@ async fn fetch_one_job() {
 #[tokio::test]
 async fn fetch_many_jobs() {
     let local = "fetch_many_jobs";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();

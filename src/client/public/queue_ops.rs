@@ -44,8 +44,8 @@ impl Client {
     }
 
     /// Return info on all the queues in the system.
-    pub async fn get_queues(&self) -> Result<Vec<QueueDetails>, Error> {
-        let queues: Vec<QueueDetails> = sqlx::query_as(&self.stmt.get_queues)
+    pub async fn get_all_queues(&self) -> Result<Vec<QueueDetails>, Error> {
+        let queues: Vec<QueueDetails> = sqlx::query_as(&self.stmt.get_all_queues)
             .fetch_all(&self.pool)
             .await?;
         Ok(queues)

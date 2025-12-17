@@ -10,7 +10,7 @@ pub use builder::ClientBuilder;
 pub use public::maintain_ops::MaintenanceStats;
 
 #[derive(Debug, Clone)]
-struct Statements {
+struct DmlStatements {
     fetch_jobs: String,
     get_job_info: String,
     delete_jobs: String,
@@ -22,13 +22,13 @@ struct Statements {
     create_job: String,
     create_queue: String,
     get_queue: String,
-    get_queues: String,
+    get_all_queues: String,
     delete_queue: String,
 }
 
-impl Statements {
-    fn for_schema(name: &str) -> Statements {
-        Statements {
+impl DmlStatements {
+    fn for_schema(name: &str) -> DmlStatements {
+        DmlStatements {
             fetch_jobs: sql::dml::fetch_jobs(name),
             get_job_info: sql::dml::get_job_info(name),
             delete_jobs: sql::dml::delete_jobs(name),
@@ -36,13 +36,12 @@ impl Statements {
             resume_jobs: sql::dml::resume_jobs(name),
             complete_jobs: sql::dml::complete_jobs(name),
             get_queue: sql::dml::get_queue(name),
-            get_queues: sql::dml::get_queues(name),
+            get_all_queues: sql::dml::get_all_queues(name),
             create_job: sql::dml::create_job(name),
             create_queue: sql::dml::create_queue(name),
             delete_queue: sql::dml::delete_queue(name),
-            // ...
-            fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
-            fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
+            fail_jobs_by_jids: sql::dml::fail_jobs_by_jids(name),
+            fail_jobs_by_timeout: sql::dml::fail_jobs_by_timeout(name),
         }
     }
 }
@@ -52,12 +51,12 @@ impl Statements {
 pub struct Client {
     pool: PgPool,
     opts: opts::ClientOptions,
-    stmt: Statements,
+    stmt: DmlStatements,
 }
 
 impl Client {
     async fn new(pool: PgPool, opts: opts::ClientOptions) -> Result<Self, sqlx::Error> {
-        let stmt = Statements::for_schema(&opts.schema);
+        let stmt = DmlStatements::for_schema(&opts.schema);
         let mut c = Client { pool, opts, stmt };
         c.init().await?;
         Ok(c)
