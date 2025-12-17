@@ -157,8 +157,8 @@ async fn create_queue() {
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
-    let dlq_opts = Queue::builder().name("image_processing_dlq").build();
-    client.create_queue(&dlq_opts).await.unwrap();
+    let dlq = Queue::builder().name("image_processing_dlq").build();
+    client.create_queue(&dlq).await.unwrap();
 
     let queue = Queue::builder()
         .name("image_processing")
@@ -167,7 +167,7 @@ async fn create_queue() {
         .retry_backoff(true)
         .expire_in(Duration::from_secs(60 * 60))
         .retain_for(Duration::from_secs(60 * 60 * 24))
-        .dead_letter(dlq_opts.name)
+        .dead_letter(dlq.name)
         .partition(true)
         .build();
 
@@ -187,7 +187,7 @@ async fn create_queue() {
     assert!(q.retry_backoff);
     assert_eq!(q.expire_in, Duration::from_secs(60 * 60));
     assert_eq!(q.retain_for, Duration::from_secs(60 * 60 * 24));
-    assert_eq!(q.dead_letter.as_ref().unwrap(), dlq_opts.name);
+    assert_eq!(q.dead_letter.as_ref().unwrap(), dlq.name);
 }
 
 #[tokio::test]
