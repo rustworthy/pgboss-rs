@@ -35,51 +35,48 @@ impl Client {
                         msg: "queue does not exist",
                     };
                 }
-                if let Some(db_error) = e.as_database_error() {
-                    if let Some(constraint) = db_error.constraint() {
-                        if constraint.starts_with('j') {
-                            if constraint.ends_with("_pkey") {
-                                return Error::Conflict {
-                                    msg: "job with this id already exists",
-                                };
-                            }
-                            if constraint.ends_with("_i1") {
-                                return Error::Throttled {
-                                    msg: "policy 'short' is applied to jobs with state 'created'",
-                                };
-                            }
-                            if constraint.ends_with("_i2") {
-                                return Error::Throttled {
-                                    msg: "policy 'singleton' is applied to jobs with state 'active'",
-                                };
-                            }
-                            if constraint.ends_with("_i3") {
-                                return Error::Throttled {
-                                    msg: "policy 'stately' is applied to jobs with state 'created', 'retry' or 'active'",
-                                };
-                            }
-                            if constraint.ends_with("_i4") {
-                                return Error::Throttled {
-                                    msg: "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'",
-                                };
-                            }
-                            if constraint.ends_with("_i6") {
-                                return Error::Throttled {
-                                    msg: "explusive policy applied",
-                                };
-                            }
-                        }
-                        if constraint == "dlq_fkey" {
-                            return Error::DoesNotExist {
-                                msg: "dead letter queue does not exist",
+                if let Some(constraint) = e.as_database_error().and_then(|e| e.constraint()) {
+                    if constraint.starts_with('j') {
+                        if constraint.ends_with("_pkey") {
+                            return Error::Conflict {
+                                msg: "job with this id already exists",
                             };
                         }
-                        if constraint == "q_fkey" {
-                            return Error::DoesNotExist {
-                                msg: "queue does not exist",
+                        if constraint.ends_with("_i1") {
+                            return Error::Throttled {
+                                msg: "policy 'short' is applied to jobs with state 'created'",
                             };
                         }
-
+                        if constraint.ends_with("_i2") {
+                            return Error::Throttled {
+                                msg: "policy 'singleton' is applied to jobs with state 'active'",
+                            };
+                        }
+                        if constraint.ends_with("_i3") {
+                            return Error::Throttled {
+                                msg: "policy 'stately' is applied to jobs with state 'created', 'retry' or 'active'",
+                            };
+                        }
+                        if constraint.ends_with("_i4") {
+                            return Error::Throttled {
+                                msg: "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'",
+                            };
+                        }
+                        if constraint.ends_with("_i6") {
+                            return Error::Throttled {
+                                msg: "explusive policy applied",
+                            };
+                        }
+                    }
+                    if constraint == "dlq_fkey" {
+                        return Error::DoesNotExist {
+                            msg: "dead letter queue does not exist",
+                        };
+                    }
+                    if constraint == "q_fkey" {
+                        return Error::DoesNotExist {
+                            msg: "queue does not exist",
+                        };
                     }
                 }
                 Error::Sqlx(e)
