@@ -22,7 +22,7 @@ impl Client {
         J: Borrow<Job<'a>>,
     {
         let job = job.borrow();
-        let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
+        sqlx::query_scalar(&self.stmt.create_job)
             .bind(job.id)
             .bind(job.queue_name)
             .bind(Json(&job.data))
@@ -30,6 +30,11 @@ impl Client {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| {
+                if let sqlx::Error::RowNotFound = e {
+                    return Error::DoesNotExist {
+                        msg: "queue does not exist",
+                    };
+                }
                 if let Some(db_error) = e.as_database_error() {
                     if let Some(constraint) = db_error.constraint() {
                         if constraint.starts_with('j') {
@@ -58,19 +63,27 @@ impl Client {
                                     msg: "singleton policy applied to jobs with 'singleton_on' property and state not 'cancelled'",
                                 };
                             }
+                            if constraint.ends_with("_i6") {
+                                return Error::Throttled {
+                                    msg: "explusive policy applied",
+                                };
+                            }
                         }
                         if constraint == "dlq_fkey" {
                             return Error::DoesNotExist {
                                 msg: "dead letter queue does not exist",
                             };
                         }
+                        if constraint == "q_fkey" {
+                            return Error::DoesNotExist {
+                                msg: "queue does not exist",
+                            };
+                        }
+
                     }
                 }
                 Error::Sqlx(e)
-            })?;
-        id.ok_or(Error::DoesNotExist {
-            msg: "queue does not exist",
-        })
+            })
     }
 
     /// Create and enqueue a job.
@@ -79,16 +92,16 @@ impl Client {
         Q: AsRef<str>,
         D: Borrow<serde_json::Value>,
     {
-        let id: Option<Uuid> = sqlx::query_scalar(&self.stmt.create_job)
+        sqlx::query_scalar(&self.stmt.create_job)
             .bind(Option::<Uuid>::None)
             .bind(queue_name.as_ref())
             .bind(Json(data.borrow()))
             .bind(Json(JobOptions::default()))
-            .fetch_one(&self.pool)
-            .await?;
-        id.ok_or(Error::DoesNotExist {
-            msg: "queue does not exist",
-        })
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(Error::DoesNotExist {
+                msg: "queue does not exist",
+            })
     }
 
     /// Fetch a job from a queue.

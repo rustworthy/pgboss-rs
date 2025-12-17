@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[tokio::test]
 async fn fetch_one_job() {
     let local = "fetch_one_job";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();
@@ -21,7 +21,6 @@ async fn fetch_one_job() {
         .queue_name("jobtype")
         .data(json!({"key": "value1"}))
         .priority(10) // should be fetched THIRD
-        .dead_letter("jobtype_dead_letter_queue")
         .retry_limit(5)
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
@@ -33,7 +32,6 @@ async fn fetch_one_job() {
         .queue_name("jobtype")
         .data(json!({"key": "value2"}))
         .priority(20) // should be fetched FIRST
-        .dead_letter("jobtype_dead_letter_queue")
         .retry_limit(5)
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
@@ -44,7 +42,6 @@ async fn fetch_one_job() {
         .queue_name("jobtype")
         .data(json!({"key": "value3"}))
         .priority(15) // should be fetched SECOND
-        .dead_letter("jobtype_dead_letter_queue")
         .retry_limit(5)
         .retry_delay(Duration::from_secs(60 * 5))
         .retry_backoff(true)
@@ -103,7 +100,7 @@ async fn fetch_one_job() {
 #[tokio::test]
 async fn fetch_many_jobs() {
     let local = "fetch_many_jobs";
-    utils::drop_schema(&local).await.unwrap();
+    utils::drop_schema(local).await.unwrap();
 
     let c = Client::builder().schema(local).connect().await.unwrap();
     c.create_standard_queue("jobtype").await.unwrap();

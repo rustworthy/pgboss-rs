@@ -3,3 +3,5 @@
 lcov.info
 .vscode
 .env
+pgdata/
+pgdump/

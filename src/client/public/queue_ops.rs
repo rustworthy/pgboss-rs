@@ -9,14 +9,14 @@ impl Client {
     /// Registers a customized queue in the database.
     ///
     /// This operation will _not_ fail if the queue already exists.
-    pub async fn create_queue<'a, Q>(&self, opts: Q) -> Result<(), Error>
+    pub async fn create_queue<'a, Q>(&self, queue: Q) -> Result<(), Error>
     where
         Q: Borrow<Queue<'a>>,
     {
-        let q_opts = opts.borrow();
+        let q = queue.borrow();
         Ok(sqlx::query(&self.stmt.create_queue)
-            .bind(q_opts.name)
-            .bind(Json(q_opts))
+            .bind(q.name)
+            .bind(Json(q.opts()))
             .execute(&self.pool)
             .await
             .map(|_| ())?)
@@ -44,8 +44,8 @@ impl Client {
     }
 
     /// Return info on all the queues in the system.
-    pub async fn get_queues(&self) -> Result<Vec<QueueDetails>, Error> {
-        let queues: Vec<QueueDetails> = sqlx::query_as(&self.stmt.get_queues)
+    pub async fn get_all_queues(&self) -> Result<Vec<QueueDetails>, Error> {
+        let queues: Vec<QueueDetails> = sqlx::query_as(&self.stmt.get_all_queues)
             .fetch_all(&self.pool)
             .await?;
         Ok(queues)

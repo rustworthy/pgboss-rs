@@ -9,7 +9,7 @@ async fn force_maintain_check_expiration() {
     let qname = "force_maintain_check_expiration_queue";
     let timeout = Duration::from_secs(1);
 
-    utils::drop_schema(&sname).await.unwrap();
+    utils::drop_schema(sname).await.unwrap();
 
     let c = Client::builder().schema(sname).connect().await.unwrap();
     c.create_standard_queue(qname).await.unwrap();
@@ -17,7 +17,7 @@ async fn force_maintain_check_expiration() {
     // a job that can only be executed for 1 seconds _once consumed_,
     // i.e. when its stated changed to "active"
     let job = Job::builder()
-        .queue_name(&qname)
+        .queue_name(qname)
         .retry_limit(0)
         .expire_in(timeout)
         .build();
@@ -64,7 +64,6 @@ async fn force_maintain_check_expiration() {
     // let's force maintenance
     let maintain_stats = c.force_maintain().await.expect("no errors");
     assert_eq!(maintain_stats.expired, 1);
-    assert_eq!(maintain_stats.archived, 0);
     // just a sanity check
     assert_eq!(
         c.get_job(qname, jid)

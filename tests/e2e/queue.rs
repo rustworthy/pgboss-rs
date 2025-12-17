@@ -1,31 +1,19 @@
-use std::time::Duration;
-
-use crate::utils::{self, POSRGRES_URL};
+use crate::utils;
 use chrono::Utc;
 use pgboss::{Client, Queue, QueuePolicy};
 use sqlx::postgres::PgPoolOptions;
-
-#[tokio::test]
-async fn simple_connect() {
-    utils::drop_schema("pgboss").await.unwrap();
-    // This will crate `pgboss` schema, which is does not
-    // allow us to isolate tests properly, so we only use it
-    // once in this test - sanity check.
-    //
-    // We are also leaving it behind to able to inspect the db with psql.
-    Client::connect().await.unwrap();
-    Client::connect_to(POSRGRES_URL.as_str()).await.unwrap();
-}
+use std::time::Duration;
 
 #[tokio::test]
 async fn connect_to() {
     let local = "connect_to";
+    utils::drop_schema(local).await.unwrap();
+
     let _c = Client::builder()
         .schema(local)
-        .connect_to(POSRGRES_URL.as_str())
+        .connect_to(utils::POSTGRES_URL.as_str())
         .await
         .unwrap();
-    utils::drop_schema(local).await.unwrap();
 }
 
 // On CI - when running on Ubuntu with our postgres service with TLS enabled - use '--include-ignored'
@@ -34,7 +22,7 @@ async fn connect_to() {
 #[tokio::test]
 async fn bring_your_own_pool() {
     let local = "bring_your_own_pool";
-    let url = format!("{}?sslmode=require", POSRGRES_URL.as_str());
+    let url = format!("{}?sslmode=require", utils::POSTGRES_URL.as_str());
     let p = PgPoolOptions::new()
         .max_connections(1)
         .connect(&url)
@@ -47,6 +35,7 @@ async fn bring_your_own_pool() {
 #[tokio::test]
 async fn instantiated_idempotently() {
     let local = "instantiated_idempotently";
+    utils::drop_schema(local).await.unwrap();
 
     // as if N containers from a ReplicaSet are performing bootstrapping
     let mut js = tokio::task::JoinSet::new();
@@ -60,8 +49,6 @@ async fn instantiated_idempotently() {
     while let Some(res) = js.join_next().await {
         res.unwrap()
     }
-
-    utils::drop_schema(local).await.unwrap();
 }
 
 #[tokio::test]
@@ -74,16 +61,15 @@ async fn app_latest_version_already_exists() {
         "
         CREATE TABLE {local}.version (
             version int primary key,
-            maintained_on timestamp with time zone,
             cron_on timestamp with time zone
         );
         "
     );
     let insert_app_stmt = format!(
-        "INSERT INTO {local}.version VALUES ('{}', '{}','{}')",
-        23,
+        // do ot try to repeat this at home
+        "INSERT INTO {local}.version (version, cron_on) VALUES ('{}', '{}')",
+        26,
         Utc::now(),
-        Utc::now()
     );
 
     utils::ad_hoc_sql([
@@ -98,7 +84,9 @@ async fn app_latest_version_already_exists() {
 }
 
 #[tokio::test]
-#[should_panic(expected = "Cannot migrate from the currently installed PgBoss application.")]
+#[should_panic(
+    expected = "cannot migrate from currently installed PgBoss application version: installed=20, minimal=26"
+)]
 async fn less_than_v21_app_already_exists() {
     let local = "less_than_v21_app_already_exists";
     utils::drop_schema(local).await.unwrap();
@@ -108,16 +96,14 @@ async fn less_than_v21_app_already_exists() {
         "
         CREATE TABLE {local}.version (
             version int primary key,
-            maintained_on timestamp with time zone,
-            cron_on timestamp with time zone
+            cron_on timestamptz
         );
         "
     );
     let insert_app_stmt = format!(
-        "INSERT INTO {local}.version VALUES ('{}', '{}','{}')",
+        "INSERT INTO {local}.version VALUES ('{}', '{}')",
         20,
         Utc::now(),
-        Utc::now()
     );
 
     utils::ad_hoc_sql([
@@ -147,11 +133,11 @@ async fn create_standard_queue() {
 
     assert_eq!(q.name, "job_type");
     assert_eq!(q.policy, QueuePolicy::Standard);
-    assert_eq!(q.retry_limit, None);
-    assert_eq!(q.retry_delay, None);
-    assert_eq!(q.retry_backoff, None);
-    assert_eq!(q.expire_in, None);
-    assert_eq!(q.retain_for, None);
+    assert_eq!(q.retry_limit, 2);
+    assert_eq!(q.retry_delay, Duration::ZERO);
+    assert!(!q.retry_backoff);
+    assert_eq!(q.expire_in, Duration::from_secs(60 * 15)); // 15 mins default
+    assert_eq!(q.retain_for, Duration::from_secs(1209600)); // 14 days default
     assert_eq!(q.dead_letter, None);
 }
 
@@ -166,28 +152,28 @@ async fn create_queue_already_exists() {
 }
 
 #[tokio::test]
-async fn create_non_standard_queue() {
-    let local = "create_non_standard_queue";
+async fn create_queue() {
+    let local = "create_queue";
     utils::drop_schema(local).await.unwrap();
 
     let client = Client::builder().schema(local).connect().await.unwrap();
-    let dlq_opts = Queue::builder().name("image_processing_dlq").build();
-    client.create_queue(&dlq_opts).await.unwrap();
+    let dlq = Queue::builder().name("image_processing_dlq").build();
+    client.create_queue(&dlq).await.unwrap();
 
-    let queue_opts = Queue::builder()
+    let queue = Queue::builder()
         .name("image_processing")
-        .policy(QueuePolicy::Singleton)
         .retry_limit(3)
         .retry_delay(Duration::from_secs(10))
         .retry_backoff(true)
         .expire_in(Duration::from_secs(60 * 60))
         .retain_for(Duration::from_secs(60 * 60 * 24))
-        .dead_letter(&dlq_opts.name)
+        .dead_letter(dlq.name)
+        .partition(true)
         .build();
 
-    client.create_queue(&queue_opts).await.unwrap();
+    client.create_queue(&queue).await.unwrap();
 
-    let queues = client.get_queues().await.unwrap();
+    let queues = client.get_all_queues().await.unwrap();
     assert_eq!(queues.len(), 2); // queue + dlq
 
     let q = queues
@@ -195,13 +181,13 @@ async fn create_non_standard_queue() {
         .find(|&q| q.name == "image_processing")
         .unwrap();
     assert_eq!(q.name, "image_processing");
-    assert_eq!(q.policy, QueuePolicy::Singleton);
-    assert_eq!(q.retry_limit.unwrap(), 3);
-    assert_eq!(q.retry_delay.unwrap(), Duration::from_secs(10));
-    assert_eq!(q.retry_backoff.unwrap(), true);
-    assert_eq!(q.expire_in.unwrap(), Duration::from_secs(60 * 60));
-    assert_eq!(q.retain_for.unwrap(), Duration::from_secs(60 * 60 * 24));
-    assert_eq!(q.dead_letter.as_ref().unwrap(), dlq_opts.name);
+    assert_eq!(q.policy, QueuePolicy::Standard);
+    assert_eq!(q.retry_limit, 3);
+    assert_eq!(q.retry_delay, Duration::from_secs(10));
+    assert!(q.retry_backoff);
+    assert_eq!(q.expire_in, Duration::from_secs(60 * 60));
+    assert_eq!(q.retain_for, Duration::from_secs(60 * 60 * 24));
+    assert_eq!(q.dead_letter.as_ref().unwrap(), dlq.name);
 }
 
 #[tokio::test]

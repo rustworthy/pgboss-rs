@@ -1,4 +1,5 @@
 use super::utils;
+use crate::utils::TryGetDuration as _;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{
@@ -50,7 +51,7 @@ impl TryFrom<String> for JobState {
             "completed" => Ok(Self::Completed),
             "cancelled" => Ok(Self::Cancelled),
             "failed" => Ok(Self::Failed),
-            other => Err(format!("Unsupported job state: {}", other)),
+            other => Err(format!("Unsupported job state: {other}")),
         }
     }
 }
@@ -65,7 +66,7 @@ impl std::fmt::Display for JobState {
             Self::Cancelled => "cancelled",
             Self::Failed => "failed",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -74,10 +75,6 @@ impl std::fmt::Display for JobState {
 #[non_exhaustive]
 pub(crate) struct JobOptions<'a> {
     priority: usize,
-
-    /// Name of the dead letter queue for this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dead_letter: Option<&'a str>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     retry_limit: Option<usize>,
@@ -97,8 +94,11 @@ pub(crate) struct JobOptions<'a> {
     )]
     expire_in: Option<Duration>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    keep_until: Option<DateTime<Utc>>,
+    #[serde(
+        serialize_with = "utils::serialize_duration_as_secs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    retain_for: Option<Duration>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     start_after: Option<DateTime<Utc>>,
@@ -114,11 +114,10 @@ pub(crate) struct JobOptions<'a> {
 }
 
 /// A job to be sent to the server.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct Job<'a> {
     /// ID to assign to this job.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
 
     /// Name of the queue to put this job onto.
@@ -132,9 +131,6 @@ pub struct Job<'a> {
     /// Higher numbers will have higher priority
     /// when fetching from the queue.
     pub priority: usize,
-
-    /// Name of the dead letter queue for this job.
-    pub dead_letter: Option<&'a str>,
 
     /// Number of retry attempts.
     ///
@@ -156,13 +152,11 @@ pub struct Job<'a> {
     /// Should be between 1 second and 24 hours, or simply unset (default).
     pub expire_in: Option<Duration>,
 
-    /// When this job can be archived.
+    /// How how long this job should be retained.
     ///
-    /// Specifies for how long this job may be in `created` or `retry` state before
-    /// it is archived.
-    ///
-    /// Should be greater than or equal to 1 second, or simply unset (default).
-    pub keep_until: Option<DateTime<Utc>>,
+    /// Note that the retention deadline will be calculated starting
+    /// from the [`Job::start_after`] point.
+    pub retain_for: Option<Duration>,
 
     /// When this job should become visible to consumers.
     ///
@@ -186,7 +180,7 @@ pub struct Job<'a> {
 ///
 /// As soon as a job is fetched from the server, it's status transitions to `active`
 /// and whoever has fetch this job will hav
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct JobDetails {
     /// ID of this job.
@@ -277,13 +271,7 @@ impl FromRow<'_, PgRow> for JobDetails {
         let queue_name: String = row.try_get("name")?;
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
         let data: serde_json::Value = row.try_get("data")?;
-        let expire_in = row.try_get("expire_in").and_then(|v: f64| match v {
-            v if v >= 0.0 => Ok(Duration::from_secs_f64(v)),
-            _ => Err(sqlx::Error::ColumnDecode {
-                index: "expire_in".to_string(),
-                source: "'expire_in' should be non-negative".into(),
-            }),
-        })?;
+        let expire_in = row.try_get_duration("expire_seconds")?;
         let policy = row
             .try_get("policy")
             .and_then(|v: Option<String>| match v {
@@ -300,28 +288,22 @@ impl FromRow<'_, PgRow> for JobDetails {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_delay".to_string(),
-                source: format!("'priority' should be non-negative, got: {}", v).into(),
+                source: format!("'priority' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_limit = row.try_get("retry_limit").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_limit".to_string(),
-                source: format!("'retry_limit' should be non-negative, got: {}", v).into(),
+                source: format!("'retry_limit' should be non-negative, got: {v}").into(),
             }),
         })?;
-        let retry_delay = row.try_get("retry_delay").and_then(|v: i32| match v {
-            v if v >= 0 => Ok(Duration::from_secs(v as u64)),
-            v => Err(sqlx::Error::ColumnDecode {
-                index: "retry_delay".to_string(),
-                source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
-            }),
-        })?;
+        let retry_delay = row.try_get_duration("retry_delay")?;
         let retry_count = row.try_get("retry_count").and_then(|v: i32| match v {
             v if v >= 0 => Ok(v as usize),
             v => Err(sqlx::Error::ColumnDecode {
                 index: "retry_count".to_string(),
-                source: format!("'retry_count' should be non-negative, got: {}", v).into(),
+                source: format!("'retry_count' should be non-negative, got: {v}").into(),
             }),
         })?;
         let retry_backoff: bool = row.try_get("retry_backoff")?;
@@ -380,12 +362,11 @@ impl<'a> Job<'a> {
     pub(crate) fn opts(&self) -> JobOptions<'_> {
         JobOptions {
             priority: self.priority,
-            dead_letter: self.dead_letter,
             retry_limit: self.retry_limit,
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            keep_until: self.keep_until,
+            retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,
@@ -393,7 +374,7 @@ impl<'a> Job<'a> {
     }
 }
 
-/// A builder for a job.
+/// A builder for [`Job`].
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct JobBuilder<'a> {
@@ -401,12 +382,11 @@ pub struct JobBuilder<'a> {
     pub(crate) queue_name: &'a str,
     pub(crate) data: serde_json::Value,
     pub(crate) priority: usize,
-    pub(crate) dead_letter: Option<&'a str>,
     pub(crate) retry_limit: Option<usize>,
     pub(crate) retry_delay: Option<Duration>,
     pub(crate) retry_backoff: Option<bool>,
     pub(crate) expire_in: Option<Duration>,
-    pub(crate) keep_until: Option<DateTime<Utc>>,
+    pub(crate) retain_for: Option<Duration>,
     pub(crate) start_after: Option<DateTime<Utc>>,
     pub(crate) singleton_for: Option<Duration>,
     pub(crate) singleton_key: Option<&'a str>,
@@ -437,12 +417,6 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
-    /// Name of the dead letter queue for this job.
-    pub fn dead_letter(mut self, value: &'a str) -> Self {
-        self.dead_letter = Some(value);
-        self
-    }
-
     /// Maximum number of retry attempts.
     pub fn retry_limit(mut self, value: usize) -> Self {
         self.retry_limit = Some(value);
@@ -469,17 +443,9 @@ impl<'a> JobBuilder<'a> {
         self
     }
 
-    /// When this job can be archived.
-    pub fn keep_until(mut self, value: DateTime<Utc>) -> Self {
-        self.keep_until = Some(value);
-        self
-    }
-
     /// For how long this job should be retained in the system.
-    ///
-    /// Will calculate and set [`JobBuilder::keep_until`].
     pub fn retain_for(mut self, value: Duration) -> Self {
-        self.keep_until = Some(Utc::now() + value);
+        self.retain_for = Some(value);
         self
     }
 
@@ -521,12 +487,11 @@ impl<'a> JobBuilder<'a> {
             queue_name: self.queue_name,
             data: self.data,
             priority: self.priority,
-            dead_letter: self.dead_letter,
             retry_limit: self.retry_limit,
             retry_delay: self.retry_delay,
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
-            keep_until: self.keep_until,
+            retain_for: self.retain_for,
             start_after: self.start_after,
             singleton_for: self.singleton_for,
             singleton_key: self.singleton_key,

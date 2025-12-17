@@ -1,4 +1,5 @@
 use super::utils;
+use crate::utils::TryGetDuration as _;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, postgres::PgRow};
@@ -32,6 +33,11 @@ pub enum QueuePolicy {
     /// Combination of short and singleton: only allows 1 job per state, queued and/or active.
     /// Can be extended with `singletonKey`
     Stately,
+
+    /// Exclusive.
+    ///
+    /// Only allows 1 job to be queued or active. Can be extended with singletonKey.
+    Exclusive,
 }
 
 impl TryFrom<String> for QueuePolicy {
@@ -42,7 +48,7 @@ impl TryFrom<String> for QueuePolicy {
             "singleton" => Ok(Self::Singleton),
             "stately" => Ok(Self::Stately),
             "standard" => Ok(Self::Standard),
-            other => Err(format!("Unsupported queue policy: {}", other)),
+            other => Err(format!("Unsupported queue policy: {other}")),
         }
     }
 }
@@ -54,14 +60,14 @@ impl std::fmt::Display for QueuePolicy {
             Self::Short => "short",
             Self::Singleton => "singleton",
             Self::Stately => "stately",
+            Self::Exclusive => "exclusive",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
 /// Queue configuration.
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Queue<'a> {
     /// Queue name.
@@ -74,8 +80,44 @@ pub struct Queue<'a> {
     ///
     /// Note that the dead letter queue itself should be created
     /// ahead of time.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub dead_letter: Option<&'a str>,
+
+    /// Number of retry attempts for jobs in this queue.
+    pub retry_limit: Option<usize>,
+
+    /// Time to wait before a retry attempt.
+    pub retry_delay: Option<Duration>,
+
+    /// Whether to use a backoff between retry attempts.
+    pub retry_backoff: Option<bool>,
+
+    /// Time to wait before expiring this job.
+    ///
+    /// Should be between 1 second and 24 hours, or simply unset (default).
+    pub expire_in: Option<Duration>,
+
+    /// For how long this job should be retained in the system.
+    ///
+    /// Should be greater than or eqaul to 1 second, or simply unset (default).
+    pub retain_for: Option<Duration>,
+
+    /// Whether the queue should form a dedicated partition.
+    pub partition: Option<bool>,
+}
+
+impl<'a> Queue<'a> {
+    /// Returns a builder for [`Queue`]
+    pub fn builder() -> QueueBuilder<'a> {
+        QueueBuilder::default()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub(crate) struct QueueOptions<'a> {
+    /// Policy to apply to this queue.
+    pub policy: &'a QueuePolicy,
 
     /// Number of retry attempts for jobs in this queue.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,6 +134,13 @@ pub struct Queue<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_backoff: Option<bool>,
 
+    /// Name of the dead letter queue.
+    ///
+    /// Note that the dead letter queue itself should be created
+    /// ahead of time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dead_letter: Option<&'a str>,
+
     /// Time to wait before expiring this job.
     ///
     /// Should be between 1 second and 24 hours, or simply unset (default).
@@ -106,17 +155,29 @@ pub struct Queue<'a> {
     ///
     /// Should be greater than or eqaul to 1 second, or simply unset (default).
     #[serde(
-        serialize_with = "utils::serialize_duration_as_mins",
-        rename = "retentionMinutes",
+        serialize_with = "utils::serialize_duration_as_secs",
+        rename = "retentionSeconds",
         skip_serializing_if = "Option::is_none"
     )]
     pub retain_for: Option<Duration>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the queue should form a dedicated partition.
+    pub partition: Option<bool>,
 }
 
 impl<'a> Queue<'a> {
-    /// Returns a builder for [`Queue`]
-    pub fn builder() -> QueueBuilder<'a> {
-        QueueBuilder::default()
+    pub(crate) fn opts(&'a self) -> QueueOptions<'a> {
+        QueueOptions {
+            policy: &self.policy,
+            dead_letter: self.dead_letter,
+            retry_limit: self.retry_limit,
+            retry_delay: self.retry_delay,
+            retry_backoff: self.retry_backoff,
+            expire_in: self.expire_in,
+            retain_for: self.retain_for,
+            partition: self.partition,
+        }
     }
 }
 
@@ -131,6 +192,7 @@ pub struct QueueBuilder<'a> {
     retry_backoff: Option<bool>,
     expire_in: Option<Duration>,
     retain_for: Option<Duration>,
+    partition: Option<bool>,
 }
 
 impl<'a> QueueBuilder<'a> {
@@ -189,6 +251,12 @@ impl<'a> QueueBuilder<'a> {
         self
     }
 
+    /// Whether the queue should form a dedicated partition.
+    pub fn partition(mut self, val: bool) -> Self {
+        self.partition = Some(val);
+        self
+    }
+
     /// Terminal method for the builder returing [`Queue`]
     pub fn build(self) -> Queue<'a> {
         Queue {
@@ -200,6 +268,7 @@ impl<'a> QueueBuilder<'a> {
             retry_backoff: self.retry_backoff,
             expire_in: self.expire_in,
             retain_for: self.retain_for,
+            partition: self.partition,
         }
     }
 }
@@ -215,19 +284,22 @@ pub struct QueueDetails {
     pub policy: QueuePolicy,
 
     /// Number of retry attempts.
-    pub retry_limit: Option<usize>,
+    pub retry_limit: usize,
 
     /// Time to wait before a retry attempt.
-    pub retry_delay: Option<Duration>,
+    pub retry_delay: Duration,
 
     /// Whether to use a backoff between retry attempts.
-    pub retry_backoff: Option<bool>,
+    pub retry_backoff: bool,
 
     /// Time to wait before expiring this job.
-    pub expire_in: Option<Duration>,
+    pub expire_in: Duration,
 
     /// For how long this job should be retained in the system.
-    pub retain_for: Option<Duration>,
+    pub retain_for: Duration,
+
+    /// For how long this job should be retained in the system after it is _completed_.
+    pub delete_after: Duration,
 
     /// Name of the dead letter queue.
     pub dead_letter: Option<String>,
@@ -248,49 +320,18 @@ impl FromRow<'_, PgRow> for QueueDetails {
                 source: e.into(),
             })
         })?;
-        let retry_limit: Option<usize> =
-            row.try_get("retry_limit")
-                .and_then(|v: Option<i32>| match v {
-                    None => Ok(None),
-                    Some(v) if v >= 0 => Ok(Some(v as usize)),
-                    Some(v) => Err(sqlx::Error::ColumnDecode {
-                        index: "retry_limit".to_string(),
-                        source: format!("'retry_limit' should be non-negative, got {}", v).into(),
-                    }),
-                })?;
-        let retry_delay: Option<Duration> =
-            row.try_get("retry_delay")
-                .and_then(|v: Option<i32>| match v {
-                    None => Ok(None),
-                    Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
-                    Some(v) => Err(sqlx::Error::ColumnDecode {
-                        index: "retry_delay".to_string(),
-                        source: format!("'retry_delay' should be non-negative, got: {}", v).into(),
-                    }),
-                })?;
-        let retry_backoff: Option<bool> = row.try_get("retry_backoff")?;
-        let expire_in: Option<Duration> =
-            row.try_get("expire_seconds")
-                .and_then(|v: Option<i32>| match v {
-                    None => Ok(None),
-                    Some(v) if v >= 0 => Ok(Some(Duration::from_secs(v as u64))),
-                    Some(v) => Err(sqlx::Error::ColumnDecode {
-                        index: "expire_seconds".to_string(),
-                        source: format!("'expire_seconds' should be non-negative, got: {}", v)
-                            .into(),
-                    }),
-                })?;
-        let retain_for: Option<Duration> =
-            row.try_get("retention_minutes")
-                .and_then(|v: Option<i32>| match v {
-                    None => Ok(None),
-                    Some(v) if v >= 0 => Ok(Some(Duration::from_secs((v * 60) as u64))),
-                    Some(v) => Err(sqlx::Error::ColumnDecode {
-                        index: "retention_minutes".to_string(),
-                        source: format!("'retention_minutes' should be non-negative, got: {}", v)
-                            .into(),
-                    }),
-                })?;
+        let retry_limit: usize = row.try_get("retry_limit").and_then(|v: i32| match v {
+            v if v >= 0 => Ok(v as usize),
+            v => Err(sqlx::Error::ColumnDecode {
+                index: "retry_limit".to_string(),
+                source: format!("'retry_limit' should be non-negative, got {v}").into(),
+            }),
+        })?;
+        let retry_delay: Duration = row.try_get_duration("retry_delay")?;
+        let retry_backoff: bool = row.try_get("retry_backoff")?;
+        let expire_in: Duration = row.try_get_duration("expire_seconds")?;
+        let retain_for: Duration = row.try_get_duration("retention_seconds")?;
+        let delete_after: Duration = row.try_get_duration("deletion_seconds")?;
         let dead_letter: Option<String> = row.try_get("dead_letter")?;
         let created_at: DateTime<Utc> = row.try_get("created_at")?;
         let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
@@ -302,6 +343,7 @@ impl FromRow<'_, PgRow> for QueueDetails {
             retry_backoff,
             expire_in,
             retain_for,
+            delete_after,
             dead_letter,
             created_at,
             updated_at,

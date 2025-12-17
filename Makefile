@@ -43,6 +43,67 @@ postgres/psql:
 postgres/kill:
 	docker compose -f docker/compose.yaml down -v
 
+# This will dump the entire schma description to `./docker/pgdump` directory
+# mounted to the PostgreSQL docker container.
+#
+# We are running each end-to-end test against a dedicated schema (with the test
+# function's name normally) and are leaving those schemas behind for debugging.
+# With the next test run, they get cleaned up and re-created again. We are doing
+# this for better isolation.
+#
+# We avoid calling any of the tests `pgboss` and we
+# also avoid auto-creating this default schema (by not providing a schema name
+# to `Client` when connecting, see end-to-end testcases). This is important, because
+# we also run can the original `pgboss` example
+# (https://github.com/timgit/pg-boss/blob/3da860f0e6f0650dcb95f62e5b71af6dfbeb44f1/examples/readme.mjs)
+# against the same container. This example auto-creates `pgboss` schema.
+#
+# This way we can dump both any of our schemas and the original one, with:
+# ```sh
+# make postgres/dump schema=create_queue
+# make postgres/dump schema=pgboss
+# ```
+#
+# And then see the diff:
+# ```sh
+# diff docker/pgdump/pgboss.sql docker/pgdump/create_queue.sql --color
+# ```
+# 
+# We can also compare specific tables:
+#
+# ```sh
+# make postgres/dump/table schema=create_queue table=job
+# make postgres/dump/table schema=pgboss table=job
+#
+# # for partitioned queues
+# make postgres/dump/table schema=create_queue table=je2814a52c8bc616deb91915a8307a2c14e29e12838bdbf7c681509e0
+# make postgres/dump/table schema=pgboss table=jce908b4bc01177e88852552fb47cc1e0277782dccfd1296c4efaecef
+#  
+# ```
+#
+# Handy diff-viewer also: https://www.diffchecker.com/text-compare/
+# To remove extra noise select to ingore whitespaces and add a few rules
+# in the sidebar; strings to ignore:
+#  - pgboss.
+#  - Schema: pgboss;
+#  - SCHEMA pgboss
+#  - jce908b4bc01177e88852552fb47cc1e0277782dccfd1296c4efaecef
+#
+#  - create_queue.
+#  - SCHEMA pgboss
+#  - Schema: create_queue;
+#  - je2814a52c8bc616deb91915a8307a2c14e29e12838bdbf7c681509e0
+#
+.PHONY: postgres/dump
+postgres/dump:
+	docker compose -f docker/compose.yaml exec postgres \
+		sh -c "pg_dump -U username --schema $(schema) --schema-only pgboss > /var/lib/postgresql/pgdump/$(schema).sql"
+
+.PHONY: postgres/dump/table
+postgres/dump/table:
+	docker compose -f docker/compose.yaml exec postgres \
+		sh -c "pg_dump -U username --schema=$(schema) --table=$(schema).$(table) --schema-only pgboss > /var/lib/postgresql/pgdump/$(schema)_$(table).sql"
+
 .PHONY: test/doc
 test/doc:
 	cargo test --locked --all-features --doc

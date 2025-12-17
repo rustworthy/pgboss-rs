@@ -1,4 +1,5 @@
 use crate::{App, sql};
+use log::info;
 use sqlx::postgres::PgPool;
 
 mod builder;
@@ -9,40 +10,38 @@ pub use builder::ClientBuilder;
 pub use public::maintain_ops::MaintenanceStats;
 
 #[derive(Debug, Clone)]
-struct Statements {
+struct DmlStatements {
     fetch_jobs: String,
     get_job_info: String,
     delete_jobs: String,
     fail_jobs_by_jids: String,
     fail_jobs_by_timeout: String,
-    archive_jobs: String,
     cancel_jobs: String,
     complete_jobs: String,
     resume_jobs: String,
     create_job: String,
     create_queue: String,
     get_queue: String,
-    get_queues: String,
+    get_all_queues: String,
     delete_queue: String,
 }
 
-impl Statements {
-    fn for_schema(name: &str) -> Statements {
-        Statements {
+impl DmlStatements {
+    fn for_schema(name: &str) -> DmlStatements {
+        DmlStatements {
             fetch_jobs: sql::dml::fetch_jobs(name),
             get_job_info: sql::dml::get_job_info(name),
             delete_jobs: sql::dml::delete_jobs(name),
-            create_job: sql::proc::create_job(name),
-            fail_jobs_by_jids: sql::proc::fail_jobs_by_jids(name),
-            fail_jobs_by_timeout: sql::proc::fail_jobs_by_timeout(name),
-            archive_jobs: sql::proc::archive_jobs(name),
             cancel_jobs: sql::dml::cancel_jobs(name),
             resume_jobs: sql::dml::resume_jobs(name),
             complete_jobs: sql::dml::complete_jobs(name),
-            create_queue: sql::proc::create_queue(name),
             get_queue: sql::dml::get_queue(name),
-            get_queues: sql::dml::get_queues(name),
-            delete_queue: sql::proc::delete_queue(name),
+            get_all_queues: sql::dml::get_all_queues(name),
+            create_job: sql::dml::create_job(name),
+            create_queue: sql::dml::create_queue(name),
+            delete_queue: sql::dml::delete_queue(name),
+            fail_jobs_by_jids: sql::dml::fail_jobs_by_jids(name),
+            fail_jobs_by_timeout: sql::dml::fail_jobs_by_timeout(name),
         }
     }
 }
@@ -52,12 +51,12 @@ impl Statements {
 pub struct Client {
     pool: PgPool,
     opts: opts::ClientOptions,
-    stmt: Statements,
+    stmt: DmlStatements,
 }
 
 impl Client {
     async fn new(pool: PgPool, opts: opts::ClientOptions) -> Result<Self, sqlx::Error> {
-        let stmt = Statements::for_schema(&opts.schema);
+        let stmt = DmlStatements::for_schema(&opts.schema);
         let mut c = Client { pool, opts, stmt };
         c.init().await?;
         Ok(c)
@@ -66,18 +65,25 @@ impl Client {
     async fn init(&mut self) -> Result<(), sqlx::Error> {
         if let Some(app) = self.maybe_existing_app().await? {
             log::info!(
-                "App already exists: version={}, maintained_on={:?}, cron_on={:?}",
+                "app already exists: version={}, cron_on={:?}",
                 app.version,
-                app.maintained_on,
                 app.cron_on
             );
             if app.version < crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION as i32 {
-                panic!("Cannot migrate from the currently installed PgBoss application.")
+                panic!(
+                    "cannot migrate from currently installed PgBoss application version: installed={}, minimal={}",
+                    app.version,
+                    crate::MINIMUM_SUPPORTED_PGBOSS_APP_VERSION
+                )
             }
-            // We are still (re)installing functions, because:
-            // - we are using `create_job` function (not used in Node.js PgBoss implementation)
-            // - in the `crate_queue` function, we are using `jsonb` as `options` type (`json` in Node.js PgBoss)
-            self.install_functions().await?;
+            if app.version < crate::CURRENT_PGBOSS_APP_VERSION as i32 {
+                log::info!(
+                    "need to apply migratations to the existing app: version={}, latest={}",
+                    app.version,
+                    crate::CURRENT_PGBOSS_APP_VERSION
+                );
+                panic!("unreachable as of release 0.1.0")
+            }
             return Ok(());
         }
         self.install_app().await?;
@@ -86,14 +92,18 @@ impl Client {
 
     async fn install_app(&mut self) -> Result<(), sqlx::Error> {
         let ddl = sql::install_app(&self.opts.schema);
-        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
-        Ok(())
-    }
-
-    async fn install_functions(&self) -> Result<(), sqlx::Error> {
-        let ddl = sql::install_functions(&self.opts.schema);
-        sqlx::raw_sql(&ddl).execute(&self.pool).await?;
-        Ok(())
+        if let Err(sqlx_err) = sqlx::raw_sql(&ddl).execute(&self.pool).await {
+            if let sqlx::Error::Database(sqlx_db_err) = &sqlx_err {
+                let msg = sqlx_db_err.message();
+                if msg.ends_with("already exists") {
+                    info!("assuming the mogrationn are already applied, message: {msg}");
+                    return Ok(());
+                }
+            }
+            Err(sqlx_err)
+        } else {
+            Ok(())
+        }
     }
 
     async fn maybe_existing_app(&mut self) -> Result<Option<App>, sqlx::Error> {
